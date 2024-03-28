@@ -1,9 +1,9 @@
-name "open_emblem_raylib"
+name "open_emblem_2D"
 description "Raylib front-end for Open Emblem."
 authors "Liam McGillivray"
 copyright "Copyright © 2024, Liam McGillivray"
 license "GPL-3.0-or-later"
-targetName "oe-raylib"
+targetName "oe-2d"
 targetType "executable"
 mainSourceFile "source/app.d"
 
