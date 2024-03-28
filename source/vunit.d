@@ -40,7 +40,7 @@ class VisibleUnit : Unit
         import core.thread.osthread;
         
         if (this.tileReach[x][y].reachable) {
-            TileAccess[] path = getPath(Vector2i(x,y));
+            TileAccess[] path = getPath!TileAccess(Vector2i(x,y));
             super.move(x, y);
             return true;
         } else return false;
@@ -51,7 +51,7 @@ class VisibleUnit : Unit
     void followPath(int x, int y) {
         import std.stdio;
         writeln("Doing followPath");
-        TileAccess[] path = getPath(x, y);
+        TileAccess[] path = getPath!TileAccess(x, y);
         writeln(path);
 
         foreach(tileAccess; path) {
