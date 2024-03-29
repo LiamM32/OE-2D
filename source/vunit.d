@@ -74,7 +74,7 @@ class VisibleUnit : Unit
         import core.thread.osthread;
         
         if (this.tileReach[x][y].reachable) {
-            Tile[] path = getPath(Vector2i(x,y));
+            Tile[] path = getPath!Tile(Vector2i(x,y));
             debug writeln("Path length is ", path.length);
             foreach(tile; path) {
                 debug assert(tile !is null);

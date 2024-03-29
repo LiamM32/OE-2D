@@ -23,17 +23,15 @@ import constants;
 import ui;
 import spriteLoader;
 
-const bool updateOnClick = false;
-
 class Mission : Map
 {
     Faction playerFaction;
     
+    static Mission instance;
     static SpriteLoader spriteLoader;
     version (customgui) UIStyle style;
     Texture2D[] sprites;
     Texture2D gridMarker;
-    
     
     Camera2D camera;
     private Vector2 mousePosition;
@@ -57,10 +55,11 @@ class Mission : Map
     }
 
     this(JSONValue mapData) {
-        camera.offset = Vector2(0.0f, 0.0f);
         import std.algorithm;
         import std.conv;
         import std.uni: toLower;
+
+        this.instance = this;
 
         version (customgui) this.style = UIStyle.getDefault;
 
@@ -271,15 +270,30 @@ class Mission : Map
         MenuList!Item itemsList;
 
         version (customgui) {
-            TextButton moveButton;
-            TextButton attackButton;
-            TextButton itemsButton;
-            TextButton waitButton;
-            TextButton backButton;
-            TextButton finishButton;
+            Panel unitMenuPanel;
             {
-                Rectangle buttonOutline = {x:GetScreenWidth-96, y:GetScreenHeight-32, 80, 32};
-                backButton = new TextButton(buttonOutline, UIStyle.getDefault, "Back", 20, delegate {
+                Rectangle buttonOutline = {x:0, y:0, 80, 32};
+                TextButton moveButton = new TextButton(buttonOutline, UIStyle.getDefault, "Move", 20, delegate {playerAction = Action.Move;});
+                
+                buttonOutline.y += 32;
+                TextButton attackButton = new TextButton(buttonOutline, UIStyle.getDefault, "Attack", 20, delegate {playerAction = Action.Attack;});
+                
+                buttonOutline.y += 32;
+                TextButton itemsButton = new TextButton(buttonOutline, UIStyle.getDefault, "Items", 20, delegate {
+                    playerAction = Action.Items;
+                    itemsList = new MenuList!Item(GetScreenWidth-128, GetScreenHeight()-256, selectedUnit.inventory);
+                });
+                
+                buttonOutline.y += 32;
+                TextButton waitButton = new TextButton(buttonOutline, UIStyle.getDefault, "Wait", 20, delegate {
+                    selectedUnit.hasActed = true;
+                    selectedUnit.finishedTurn = true;
+                    playerAction = Action.Nothing;
+                    selectedUnit = null;
+                });
+                
+                buttonOutline.y += 32;
+                TextButton backButton = new TextButton(buttonOutline, UIStyle.getDefault, "Back", 20, delegate {
                     if (playerAction != Action.Nothing) {
                         playerAction = Action.Nothing;
                         if (playerAction == Action.Items) {
@@ -288,25 +302,12 @@ class Mission : Map
                         }
                     } else selectedUnit = null;
                 });
-                buttonOutline.y -= 32;
-                waitButton = new TextButton(buttonOutline, UIStyle.getDefault, "Wait", 20, delegate {
-                    selectedUnit.hasActed = true;
-                    selectedUnit.finishedTurn = true;
-                    playerAction = Action.Nothing;
-                    selectedUnit = null;
-                });
-                buttonOutline.y -= 32;
-                itemsButton = new TextButton(buttonOutline, UIStyle.getDefault, "Items", 20, delegate {
-                    playerAction = Action.Items;
-                    itemsList = new MenuList!Item(GetScreenWidth-128, GetScreenHeight()/2, selectedUnit.inventory);
-                });
-                buttonOutline.y -= 32;
-                attackButton = new TextButton(buttonOutline, UIStyle.getDefault, "Attack", 20, delegate {playerAction = Action.Attack;});
-                buttonOutline.y -= 32;
-                moveButton = new TextButton(buttonOutline, UIStyle.getDefault, "Move", 20, delegate {playerAction = Action.Move;});
-                buttonOutline = Rectangle(x:GetScreenWidth-128, y:GetScreenHeight-32, 128, 32);
-                finishButton = new TextButton(buttonOutline, UIStyle.getDefault, "Finish turn", 20, delegate {playerAction = Action.EndTurn;});
+                unitMenuPanel = new Panel(Vector2(GetScreenWidth-80, GetScreenHeight-160));
+                unitMenuPanel.children = [moveButton, attackButton, itemsButton, waitButton, backButton];
             }
+            TextButton finishButton = new TextButton(Rectangle(x:GetScreenWidth-128, y:GetScreenHeight-32, 128, 32), UIStyle.getDefault, "Finish turn", 20, delegate {playerAction = Action.EndTurn;});
+            TextButton backButton = new TextButton(Rectangle(x:GetScreenWidth-80, y:GetScreenHeight-32, 80, 32), UIStyle.getDefault, "Back", 20, delegate {playerAction = Action.Nothing;});
+            
         } else version (raygui) {
             Rectangle moveButton = {x:GetScreenWidth-96, y:GetScreenHeight-(32*5), 96, 32};
             Rectangle attackButton = {x:GetScreenWidth-96, y:GetScreenHeight-(32*4), 96, 32};
@@ -369,7 +370,7 @@ class Mission : Map
             if (playerAction == Action.Nothing && leftClick && cursorTile !is null) {
                 if (cursorTile.occupant !is null /*&& cursorTile.occupant.faction == playerFaction*/) {
                     selectedUnit = cursorTile.occupant;
-                    version (updateOnClick) selectedUnit.updateReach();
+                    selectedUnit.updateReach();
                 }
             }
             
@@ -388,11 +389,16 @@ class Mission : Map
             if (selectedUnit !is null) {
                 if (playerAction == Action.Nothing) {
                     version (customgui) {
-                        if (selectedUnit.canMove) moveButton.draw;
+                        /*if (selectedUnit.canMove) moveButton.draw;
                         if (!selectedUnit.hasActed) attackButton.draw;
                         itemsButton.draw;
                         waitButton.draw;
-                        backButton.draw;
+                        backButton.draw;*/
+                        version (floatingMenu) {
+                            unitMenuPanel.origin.x = clamp(cast(float)TILEWIDTH*(selectedUnit.xlocation+(selectedUnit.MvRemaining/2)+2), GetScreenWidth/3, GetScreenWidth-80.0f);
+                            unitMenuPanel.origin.y = clamp(cast(float)TILEHEIGHT*(selectedUnit.ylocation-0.5), GetScreenWidth/4, GetScreenWidth-160.0f);
+                        }
+                        unitMenuPanel.draw();
                     } version (raygui) {
                         if (selectedUnit.MvRemaining > 1) if (GuiButton(moveButton, "#150#Move".toStringz)) playerAction = Action.Move;
                         if (!selectedUnit.hasActed) if (GuiButton(attackButton, "#155#Attack".toStringz)) playerAction = Action.Attack;

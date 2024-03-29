@@ -78,18 +78,19 @@ class Panel : UIElement
     Vector2 origin;
     UIElement[] children;
 
+    this(Vector2 origin, UIElement[] children = []) {
+        this.origin = origin;
+        this.children = children;
+    }
+    
     bool draw() {
-        bool hover;
-        foreach (childElement; children) {
-            if (childElement.draw) hover = true;;
-        }
-        return hover;
+        return draw(Vector2(0.0f, 0.0f));
     }
 
     bool draw(Vector2 offset) {
         bool hover;
         foreach (childElement; children) {
-            if (childElement.draw(offset)) hover = true;
+            if (childElement.draw(origin+offset)) hover = true;
         }
         return hover;
     }
@@ -126,9 +127,10 @@ class TextButton : UIElement
 
     bool draw() {return draw(Vector2(0,0));}
     
-    bool draw(Vector2 offset = Vector2(0,0)) {
+    bool draw(Vector2 offset) {
         bool hover;
-        DrawRectangleRec(offsetRect(outline, offset), style.baseColour);
+        Rectangle outline = offsetRect(this.outline, offset);
+        DrawRectangleRec(outline, style.baseColour);
         DrawTextEx(font, this.text.toStringz, textAnchor+offset, fontSize, style.lineSpacing, style.textColour);
         if(CheckCollisionPointRec(GetMousePosition(), outline)) {
             hover = true;
@@ -148,9 +150,9 @@ class UnitInfoCard// : UIElement
     VisibleUnit unit;
     string infotext;
     
-    this (VisibleUnit unit, Vector2 position ) {
-        this.outline = Rectangle(position.x, position.y, 192, 80);
-        this.imageFrame = Rectangle(position.x+4, position.y+4, 64, 64);
+    this (VisibleUnit unit, Vector2 origin ) {
+        this.outline = Rectangle(origin.x, origin.y, 192, 80);
+        this.imageFrame = Rectangle(origin.x+4, origin.y+4, 64, 64);
         this.unit = unit;
 
         this.font = FontSet.getDefault.serif;
@@ -197,19 +199,20 @@ class MenuList (ArrayType)
     Vector2 origin;
 
     this(int x, int y) {
-        this.origin.x = x;
-        this.origin.y = y;
+        origin.x = x;
+        origin.y = y;
     }
 
     this(int x, int y, ArrayType[] array) {
-        this.origin.x = x;
-        this.origin.y = y;
+        origin.x = x;
+        origin.y = y;
         reset(array);
     }
 
     void reset(ArrayType[] array) {
         import std.stdio;
-        if (array[0] is null) writeln("Array is empty"); return;
+        debug if (array[0] is null) writeln("Array is empty"); return;
+        debug writeln("MenuList array length is ", array.length);
         rects.length = array.length;
         optionNames.length = array.length;
         version (raygui) optionString = "";
@@ -217,6 +220,7 @@ class MenuList (ArrayType)
             version (customgui) optionNames[i] = object.name;
             version (raygui) optionString ~= ";"~object.name;
             rects[i] = Rectangle(x:origin.x, y:origin.y+i*24, width:96, height:24);
+            writeln("Item name: ", object.name);
         }
     }
 
@@ -233,6 +237,7 @@ class MenuList (ArrayType)
                 selected = cast(ubyte) i;
                 return true;
             }
+            writeln("Rectangle is ", optionRect);
         }
         return false;
     }
