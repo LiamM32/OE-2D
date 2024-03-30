@@ -21,6 +21,7 @@ import vunit;
 import vector_math;
 import constants;
 import ui;
+import ui_specialized;
 import spriteLoader;
 
 class Mission : Map
@@ -262,12 +263,12 @@ class Mission : Map
         this.factionsByName["player"].turnReset();
         
         Vector2 mousePosition = GetMousePosition();
-        bool onButton = false;
+        bool onGrid = true;
         bool leftClick = false;
         VisibleTile cursorTile;
         Action playerAction = Action.Nothing;
 
-        MenuList!Item itemsList;
+        MenuList itemsList;
 
         version (customgui) {
             Panel unitMenuPanel;
@@ -281,7 +282,10 @@ class Mission : Map
                 buttonOutline.y += 32;
                 TextButton itemsButton = new TextButton(buttonOutline, UIStyle.getDefault, "Items", 20, delegate {
                     playerAction = Action.Items;
-                    itemsList = new MenuList!Item(GetScreenWidth-128, GetScreenHeight()-256, selectedUnit.inventory);
+                    itemsList = new MenuList(Vector2(GetScreenWidth-128, GetScreenHeight()-256), selectedUnit.inventory, delegate(i) {
+                        if (is(typeof(selectedUnit.inventory[i])==Weapon)) selectedUnit.currentWeapon = cast(Weapon)selectedUnit.inventory[i];
+                        playerAction = Action.Nothing;
+                    });
                 });
                 
                 buttonOutline.y += 32;
@@ -367,8 +371,8 @@ class Mission : Map
                     break;
                 default: break;
             }
-            if (playerAction == Action.Nothing && leftClick && cursorTile !is null) {
-                if (cursorTile.occupant !is null /*&& cursorTile.occupant.faction == playerFaction*/) {
+            if (onGrid && playerAction == Action.Nothing && leftClick && cursorTile !is null) {
+                if (cursorTile.occupant !is null && cursorTile.occupant.faction == playerFaction) {
                     selectedUnit = cursorTile.occupant;
                     selectedUnit.updateReach();
                 }
@@ -386,19 +390,16 @@ class Mission : Map
                     if (cursorTile.occupant !is null && cursorTile)
             }*/
             
+            onGrid = (cursorTile !is null);
+            
             if (selectedUnit !is null) {
                 if (playerAction == Action.Nothing) {
                     version (customgui) {
-                        /*if (selectedUnit.canMove) moveButton.draw;
-                        if (!selectedUnit.hasActed) attackButton.draw;
-                        itemsButton.draw;
-                        waitButton.draw;
-                        backButton.draw;*/
                         version (floatingMenu) {
                             unitMenuPanel.origin.x = clamp(cast(float)TILEWIDTH*(selectedUnit.xlocation+(selectedUnit.MvRemaining/2)+2), GetScreenWidth/3, GetScreenWidth-80.0f);
                             unitMenuPanel.origin.y = clamp(cast(float)TILEHEIGHT*(selectedUnit.ylocation-0.5), GetScreenWidth/4, GetScreenWidth-160.0f);
                         }
-                        unitMenuPanel.draw();
+                        if (unitMenuPanel.draw()) onGrid = false;
                     } version (raygui) {
                         if (selectedUnit.MvRemaining > 1) if (GuiButton(moveButton, "#150#Move".toStringz)) playerAction = Action.Move;
                         if (!selectedUnit.hasActed) if (GuiButton(attackButton, "#155#Attack".toStringz)) playerAction = Action.Attack;
@@ -417,8 +418,7 @@ class Mission : Map
                     } version (raygui) {
                         if (GuiButton(backButton, "Back".toStringz)) playerAction = Action.Nothing;
                     }
-                    ubyte selectedItem;
-                    if (playerAction == Action.Items && itemsList !is null && itemsList.draw(selectedItem)) { //The `itemsList !is null` check can be removed if it won't result in a segfault.
+                    if (playerAction == Action.Items && itemsList.draw()) { //The `itemsList !is null` check can be removed if it won't result in a segfault.
                         // Do something with item.
                         playerAction = Action.Nothing;
                         destroy(itemsList);

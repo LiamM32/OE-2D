@@ -3,7 +3,7 @@ debug import std.stdio;
 import std.json;
 import raylib;
 import constants;
-import unit;
+public import unit;
 import spriteSet;
 import mission;
 import tile;

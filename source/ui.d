@@ -1,3 +1,5 @@
+module ui;
+
 debug import std.stdio;
 import raylib;
 version (raygui) import raygui;
@@ -112,10 +114,12 @@ class TextButton : UIElement
         }
     }
 
-    this(Rectangle outline, UIStyle style, string text, int fontSize, void delegate() action) {
+    this(Rectangle outline, UIStyle style=null, string text, int fontSize, void delegate() action) {
         this.outline = outline;
         this.text = text;
-        this.style = style;
+
+        if (style !is null) this.style = style;
+        else this.style = UIStyle.getDefault;
         this.fontSize = fontSize;
         this.onClick = action;
         this.font = style.fontSet.sans_bold;
@@ -142,98 +146,62 @@ class TextButton : UIElement
     }
 }
 
-class UnitInfoCard// : UIElement
+class MenuList
 {
-    Rectangle outline;
-    Rectangle imageFrame;
-    Font font;
-    VisibleUnit unit;
-    string infotext;
-    
-    this (VisibleUnit unit, Vector2 origin ) {
-        this.outline = Rectangle(origin.x, origin.y, 192, 80);
-        this.imageFrame = Rectangle(origin.x+4, origin.y+4, 64, 64);
-        this.unit = unit;
-
-        this.font = FontSet.getDefault.serif;
-        GenTextureMipmaps(&font.texture);
-
-        UnitStats stats = unit.getStats;
-        this.infotext ~= "Mv: "~to!string(stats.Mv)~"\n";
-        this.infotext ~= "MHP: "~to!string(stats.MHP)~"\n";
-        this.infotext ~= "Str: "~to!string(stats.Str)~"\n";
-        this.infotext ~= "Def: "~to!string(stats.Def)~"\n";
+    version (customgui) {
+        UIStyle style;
+        TextButton[] buttons;
+        void delegate(ubyte) action;
+    } version (raygui) {
+        Rectangle[] buttonRects;
+        string optionString;
     }
-    ~this() {
-        if (available) destroy(this.unit);
-    }
-
-    bool available() {
-        if (unit.currentTile is null) return true;
-        else return false;
-    }
-    
-    UnitStats stats() {
-        return this.unit.getStats;
-    }
-
-    bool draw(Vector2 offset = Vector2(0,0)) {
-        if (unit.currentTile !is null) return false;
-        DrawRectangleRec(offsetRect(outline, offset), Color(r:250, b:230, g:245, a:200));
-        DrawRectangleLinesEx(offsetRect(outline, offset), 1.0f, Colors.BLACK);
-        DrawTextureV(unit.sprite, Vector2(outline.x,outline.y)+offset+Vector2(4,2), Colors.WHITE); //change `Vector2(outline.x,outline.y)` to `outline.origin` if my addition to Raylib-D gets merged.
-        //DrawText(this.unit.name.toStringz, x+80, y+4, 14, Colors.BLACK);
-        DrawTextEx(font, unit.name.toStringz, Vector2(outline.x+80, outline.y+4), 17.0f, 1.0f, Colors.BLACK);
-        //DrawText(this.infotext.toStringz, x+80, y+20, 11, Colors.BLACK);
-        DrawTextEx(font, infotext.toStringz, Vector2(outline.x+80, outline.y+20), 12.5f, 1.0f, Colors.BLACK);
-        SetTextureFilter(font.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
-        return true;
-    }
-}
-
-class MenuList (ArrayType)
-{
-    Rectangle[] rects;
-    string[] optionNames;
-    version (raygui) string optionString;
     Vector2 origin;
 
-    this(int x, int y) {
+    version (raygui) this(int x, int y) {
         origin.x = x;
         origin.y = y;
     }
 
-    this(int x, int y, ArrayType[] array) {
-        origin.x = x;
-        origin.y = y;
-        reset(array);
-    }
+    this(ArrayType)(Vector2 origin, ref ArrayType[] array, void delegate(ubyte) action, UIStyle style=null) {
+        this.origin = origin;
+        this.action = action;
 
-    void reset(ArrayType[] array) {
-        import std.stdio;
-        debug if (array[0] is null) writeln("Array is empty"); return;
-        debug writeln("MenuList array length is ", array.length);
-        rects.length = array.length;
-        optionNames.length = array.length;
-        version (raygui) optionString = "";
+        if (style is null) style = UIStyle.getDefault;
+        this.style = style;
+        
         foreach (i, object; array) {
-            version (customgui) optionNames[i] = object.name;
-            version (raygui) optionString ~= ";"~object.name;
-            rects[i] = Rectangle(x:origin.x, y:origin.y+i*24, width:96, height:24);
-            writeln("Item name: ", object.name);
+            Rectangle buttonOutline = {x:0, y:0, width:96, height:24};
+            version (customgui) buttons ~= new TextButton(buttonOutline, style, object.name, 16, delegate {action(cast(ubyte)i);});
+            version (raygui) {
+                buttonRects ~= buttonOutline;
+                optionString ~= object.name~";";
+            }
         }
+        version (raygui) optionString.length--;
+    }
+
+    bool draw(Vector2 offset = Vector2(0.0f,0.0f)) {
+        offset += this.origin;
+        version (customgui) foreach(i, button; this.buttons) {
+            button.draw(offset);
+        }
+        version (raygui) foreach (i, rect; buttonRects) {
+            if (GuiButton(offsetRect(optionRect, offset), optionNames[i].toStringz)) {
+                selected = cast(ubyte) i;
+                return true;
+            }
+            writeln("Rectangle is ", optionRect);
+        }
+        return false;
     }
 
     bool draw(ref ubyte selected) {
-        foreach (i, optionRect; rects) {
-            version (customgui) {
-                DrawRectangleRec(optionRect, Colours.Paper);
-                if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition, optionRect)) {
-                    selected = cast(ubyte) i;
-                    return true;
-                }
-            }
-            version (raygui) if (GuiButton(optionRect, optionNames[i].toStringz)) {
+        version (customgui) foreach(i, button; this.buttons) {
+            button.draw;
+        }
+        version (raygui) foreach (i, rect; buttonRects) {
+            if (GuiButton(optionRect, optionNames[i].toStringz)) {
                 selected = cast(ubyte) i;
                 return true;
             }
@@ -242,6 +210,8 @@ class MenuList (ArrayType)
         return false;
     }
 }
+
+
 
 enum Colours {
     Shadow = Color(r:0, b:0, g:0, a:150),
