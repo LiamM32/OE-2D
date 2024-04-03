@@ -275,6 +275,8 @@ class Mission : Map
 
         MenuList itemsList;
 
+        UnitInfoPanel unitInfoPanel = new UnitInfoPanel(Vector2(0,GetScreenHeight));
+
         version (customgui) {
             UIElement.onHover = delegate {onGrid = false;};
             
@@ -379,26 +381,21 @@ class Mission : Map
                     break;
                 default: break;
             }
-            if (onGrid && playerAction == Action.Nothing && leftClick && cursorTile !is null) {
-                if (cursorTile.occupant is null) {
+            if (onGrid && cursorTile !is null) {
+                if (cursorTile.occupant !is null && playerAction == Action.Nothing && leftClick) {
                     selectedUnit = cursorTile.occupant;
-                } else if (cursorTile.occupant.faction == playerFaction) {
-                    selectedUnit = cursorTile.occupant;
-                    selectedUnit.updateReach();
+                    if (cursorTile.occupant.faction == playerFaction) selectedUnit.updateReach();
                 }
+
+                if (unitInfoPanel.unit != cursorTile.occupant) unitInfoPanel.resetToUnit(cursorTile.occupant);
+
+                DrawRectangleRec(cursorTile.rect, Colours.Highlight); // Highlights the tile where the cursor is.
             }
-            
-            if (cursorTile !is null && onGrid) DrawRectangleRec(cursorTile.rect, Colours.Highlight); // Highlights the tile where the cursor is.
 
             //if (selectedUnit !is null) DrawRectangleRec((cast(VisibleTile)selectedUnit.currentTile).rect, Colours.Highlight);
             drawGridMarkers(missionTimer.peek.total!"msecs");
             drawUnits();
             EndMode2D();
-            
-            /*switch (playerAction) {
-                case Action.Nothing:
-                    if (cursorTile.occupant !is null && cursorTile)
-            }*/
             
             onGrid = (cursorTile !is null);
             
@@ -444,6 +441,11 @@ class Mission : Map
                     }
                 }
             }
+
+            if (onGrid && cursorTile.occupant !is null) {
+                unitInfoPanel.draw;
+            }
+
             version (drawFPS) DrawFPS(20, 20);
             EndDrawing();
             if (playerAction == Action.EndTurn) {
@@ -494,11 +496,16 @@ class Mission : Map
         import std.math;
         
         float sinwave = 80*(sin(cast(float)time/300.0f)+1.0);
-        int opacity = sinwave.to!int + 20;
+        ubyte opacity = sinwave.to!ubyte;
         foreach (uint x, row; cast(VisibleTile[][]) grid) {
             foreach (uint y, tile; row) {
-                DrawTextureV(this.gridMarker, tile.origin, Color(10,10,10, cast(ubyte)sinwave));
+                DrawTextureV(this.gridMarker, tile.origin, Color(10,10,10, opacity));
             }
+        }
+        
+        opacity = cast(ubyte) (sinwave/4);
+        foreach (unit; cast(VisibleUnit[]) playerFaction.units) {
+            DrawEllipse(cast(int)unit.position.x+TILEWIDTH/2, cast(int)unit.position.y+TILEHEIGHT/2, cast(float)(TILEWIDTH*0.4375), cast(float)(TILEHEIGHT*0.4375), Color(220,250,250,opacity));
         }
     }
 
@@ -508,7 +515,7 @@ class Mission : Map
             shade = Colors.WHITE;
             if (phase==GamePhase.PlayerTurn && unit.faction == playerFaction) {
                 if (unit.hasActed) shade = Color(235,235,235,255);
-                else DrawEllipse(cast(int)unit.position.x+TILEWIDTH/2, cast(int)unit.position.y+TILEHEIGHT/2, cast(float)(TILEWIDTH*0.4375), cast(float)(TILEHEIGHT*0.4375), Colours.Highlight);
+                //else DrawEllipse(cast(int)unit.position.x+TILEWIDTH/2, cast(int)unit.position.y+TILEHEIGHT/2, cast(float)(TILEWIDTH*0.4375), cast(float)(TILEHEIGHT*0.4375), Colours.Highlight);
             }
             DrawTextureV(unit.sprite, unit.position+Vector2(0.0f,-30.0f), shade);
         }

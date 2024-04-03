@@ -70,3 +70,37 @@ class UnitInfoCard : UIElement
         return true;
     }
 }
+
+class UnitInfoPanel
+{
+    import vunit;
+
+    UIStyle style;
+    Rectangle textArea;
+    VisibleUnit unit;
+
+    this(Vector2 origin) {
+        this.style = UIStyle.getDefault;
+        this.textArea = Rectangle(origin.x, origin.y-64, 192, 64);
+    }
+
+    this(Vector2 origin, Unit unit) {
+        this(origin);
+        resetToUnit(unit);
+    }
+
+    void resetToUnit(Unit unit) {
+        this.unit = cast(VisibleUnit)unit;
+    }
+
+    void draw() {
+        Font font = style.fontSet.sans;
+        DrawRectangleRec(textArea, style.baseColour);
+        DrawTextEx(font, ("HP: "~unit.HP.to!string~"/"~unit.MHP.to!string).toStringz, Vector2(textArea.x+4, textArea.y+2), 14, 1, Colors.BLACK);
+        if (unit.Mv == unit.MvRemaining) DrawTextEx(font, ("Mv: "~unit.Mv.to!string).toStringz, Vector2(textArea.x+4, textArea.y+18), 14, 1, Colors.BLACK);
+        else DrawTextEx(font, ("Mv: "~unit.MvRemaining.to!string~"/"~unit.Mv.to!string).toStringz, Vector2(textArea.x+4, textArea.y+18), 14, 1, Colors.BLACK);
+        if (unit.currentWeapon !is null) DrawTextEx(font, ("Weapon: "~unit.currentWeapon.name).toStringz, Vector2(textArea.x+68, textArea.y+18), 14, 1, Colors.BLACK);
+        DrawTextEx(font, ("Str: "~unit.Str.to!string).toStringz, Vector2(textArea.x+4, textArea.y+34), 14, 1, Colors.BLACK);
+        DrawTextEx(font, ("Def: "~unit.Def.to!string).toStringz, Vector2(textArea.x+68, textArea.y+34), 14, 1, Colors.BLACK);
+    }
+}
