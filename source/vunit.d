@@ -18,6 +18,8 @@ class VisibleUnit : Unit
     Vector2 position;
     ActionStep[] queue;
 
+    version (fluid) void delegate() onClick;
+
     this(Mission map, JSONValue unitData, Faction faction = null) {
         import std.string:toStringz;
         import std.path : buildNormalizedPath;

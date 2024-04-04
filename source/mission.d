@@ -9,7 +9,7 @@ import std.datetime.stopwatch;
 import raylib;
 version (fluid) {
     import fluid;
-    import raylib:KeyboardKey,MouseButton;
+    import raylib:Texture,KeyboardKey,MouseButton;
 }
 version (raygui) import raygui;
 
@@ -33,6 +33,7 @@ class Mission : Map
     static Mission instance;
     static SpriteLoader spriteLoader;
     version (customgui) UIStyle style;
+    version (fluid) MapFrame fluidGUI;
     Texture2D[] sprites;
     Texture2D gridMarker;
     
@@ -40,7 +41,7 @@ class Mission : Map
     private Vector2 mousePosition;
     private Vector2i mouseGridPosition;
     Rectangle mapArea = {x:0, y:0};          // Rectangle representing the map area in world space.
-    Rectangle mapView;          // Rectanlge representing the visible part of the map in screen space.
+    Rectangle mapView;                  // Rectangle representing the visible part of the map in screen space.
     StopWatch missionTimer;
     VisibleTile[] startingTiles;
     
@@ -65,6 +66,11 @@ class Mission : Map
         this.instance = this;
 
         version (customgui) this.style = UIStyle.getDefault;
+
+        version (fluid) {
+            auto menuPanel = nodeSlot!Frame();
+            fluidGUI = mapFrame(.layout!("fill","fill"), menuPanel=menuPanel);
+        }
 
         spriteLoader = SpriteLoader.current;
 
@@ -109,7 +115,7 @@ class Mission : Map
     }
 
     void run() {
-        startPreparation();
+        preparation();
         this.mapView = Rectangle(0, 0, GetScreenWidth, GetScreenHeight);
         writeln("There are ", factions.length, " factions.");
         while(!WindowShouldClose) {
@@ -118,7 +124,7 @@ class Mission : Map
         }
     }
 
-    void startPreparation() {   
+    void preparation() {   
         this.phase = GamePhase.Preparation;
 
         Rectangle menuBox = {x:0, y:GetScreenHeight()-96, width:GetScreenWidth(), height:96};
@@ -131,7 +137,7 @@ class Mission : Map
             VisibleUnit unit = new VisibleUnit(this, unitData, factionsByName["player"]);//loadUnitFromJSON(unitData, spriteIndex, false);
             availableUnits ~= unit;
             version (raygui) unitCards[unit] = new UnitInfoCard(unit, Vector2(x:k*258.0f, y:GetScreenHeight()-88.0f));
-            unitCards[unit] = new UnitInfoCard(unit, Vector2(x:k*258.0f, y:GetScreenHeight()-88.0f), delegate(){selectedUnit = unit;});
+            else unitCards[unit] = new UnitInfoCard(unit, Vector2(x:k*258.0f, y:GetScreenHeight()-88.0f), delegate(){selectedUnit = unit;});
         }
         debug writeln("There are "~to!string(unitCards.length)~" units available.");
 
@@ -140,18 +146,22 @@ class Mission : Map
             else writeln("mission.allUnits["~to!string(i)~"] is null");
         }
 
-        version (Fluid) {
-            import fluid:Button,button;
-            auto startButton = Button!("Start Mission", delegate {
+        version (fluid) {
+            //import fluid;
+            auto startButton = button(.layout!("end", "start"), "Start Mission", delegate {
                 this.endTurn();
             });
+            /*fluidGUI.addChild(startButton, MapPosition(
+                coords: Vector2(GetScreenWidth-160, menuBox.y-16),
+                drop: MapDropVector(MapDropDirection.automatic, MapDropDirection.automatic)
+                ));*/
             import raylib;
         } else version (raygui) {
             Rectangle startButton = {x:GetScreenWidth()-160, y:menuBox.y-16, width:160, height:32};
         } else version (customgui) {
             TextButton startButton;
             {
-                Rectangle buttonOutline = {x:GetScreenWidth()-160, y:menuBox.y-16, width:160, height:32};
+                Rectangle buttonOutline = {x:GetScreenWidth-160, y:menuBox.y-16, width:160, height:32};
                 startButton = new TextButton(buttonOutline, "Start Mission", 18, &endTurn);
             }
         }
@@ -221,7 +231,13 @@ class Mission : Map
             if (this.selectedUnit !is null) {
                 DrawTextureV((cast(VisibleUnit)this.selectedUnit).sprite, mousePosition+dragOffset, Colors.WHITE);
             }
-            if (unitsDeployed > 0 && missionTimer.peek() >= msecs(WAITTIME*startingTiles.length/unitsDeployed)) {
+            version (fluid) { if (!startButtonAvailable && unitsDeployed*missionTimer.peek() >= msecs(WAITTIME*startingTiles.length)) {
+                fluidGUI.addChild(startButton, MapPosition(
+                    coords: Vector2(GetScreenWidth-160, menuBox.y-16),
+                    drop: MapDropVector(MapDropDirection.automatic, MapDropDirection.automatic)
+                ));
+                startButtonAvailable = true;
+            }} else if (startButtonAvailable || unitsDeployed > 0 && unitsDeployed*missionTimer.peek() >= msecs(WAITTIME*startingTiles.length)) {
                 version (customgui) {
                     startButton.draw();
                     if (CheckCollisionPointRec(mousePosition, startButton.area) && IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
@@ -234,12 +250,10 @@ class Mission : Map
                         break;
                     }
                 }
+                startButtonAvailable = true;
             }
 
-            debug if (IsKeyDown(KeyboardKey.KEY_SPACE)) {
-                DrawRectangleRec(mapView, Color(250, 20, 20, 50));
-            }
-
+            version (fluid) fluidGUI.draw();
             version (drawFPS) DrawFPS(20, 20);
             EndDrawing();
         }
@@ -256,6 +270,8 @@ class Mission : Map
             startTile.occupant.setLocation(startTile.x(), startTile.y());
         }
         this.startingTiles.length = 0;
+
+        version (fluid) fluidGUI.children.length = 0;
 
         debug verifyEverything;
 
@@ -322,6 +338,26 @@ class Mission : Map
             TextButton finishButton = new TextButton(Rectangle(x:GetScreenWidth-128, y:GetScreenHeight-32, 128, 32), "Finish turn", 20, delegate {playerAction = Action.EndTurn;});
             TextButton backButton = new TextButton(Rectangle(x:GetScreenWidth-80, y:GetScreenHeight-32, 80, 32), "Back", 20, delegate {playerAction = Action.Nothing;});
             
+        } else version (fluid) {
+            Frame unitMenuPanel;
+            auto menuPanel = nodeSlot!Node();
+            {
+                auto innerBackButton = button(.layout!"fill", "Back", delegate {playerAction = Action.Nothing; menuPanel = unitMenuPanel;});
+                auto moveButton = button(.layout!("fill"), "Move", delegate {playerAction = Action.Move; menuPanel = innerBackButton;});
+                auto attackButton = button(.layout!("fill"), "Attack", delegate {playerAction = Action.Attack; menuPanel = innerBackButton;});
+                auto itemsButton = button(.layout!("fill"), "Items", delegate {
+                    playerAction = Action.Items;
+                    auto itemsMenu = vframe();
+                    foreach (item; selectedUnit.inventory) {
+                        itemsMenu.children ~= button(.layout!"fill", item.name, delegate {writeln("Item actions not yet implemented"); menuPanel = unitMenuPanel;}); // TODO: Fix this when item actions are implemented.
+                    }
+                    itemsMenu.children ~= innerBackButton;
+                    menuPanel = itemsMenu;
+                });
+                auto outerBackButton = button(.layout!"fill", "Back", delegate {selectedUnit = null; menuPanel = null;});
+                unitMenuPanel = vframe(.layout!("end", "end"), moveButton, attackButton, itemsButton, outerBackButton);
+            }
+            fluidGUI.addChild(menuPanel, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight), drop:MapDropVector(MapDropDirection.end, MapDropDirection.automatic)));
         } else version (raygui) {
             Rectangle moveButton = {x:GetScreenWidth-96, y:GetScreenHeight-(32*5), 96, 32};
             Rectangle attackButton = {x:GetScreenWidth-96, y:GetScreenHeight-(32*4), 96, 32};
@@ -382,9 +418,10 @@ class Mission : Map
                 default: break;
             }
             if (onGrid && cursorTile !is null) {
-                if (cursorTile.occupant !is null && playerAction == Action.Nothing && leftClick) {
+                if (leftClick && cursorTile.occupant !is null && playerAction == Action.Nothing && cursorTile.occupant.faction == playerFaction) {
                     selectedUnit = cursorTile.occupant;
-                    if (cursorTile.occupant.faction == playerFaction) selectedUnit.updateReach();
+                    selectedUnit.updateReach();
+                    version (fluid) menuPanel = unitMenuPanel;
                 }
 
                 if (unitInfoPanel.unit != cursorTile.occupant) unitInfoPanel.resetToUnit(cursorTile.occupant);
@@ -445,6 +482,8 @@ class Mission : Map
             if (onGrid && cursorTile.occupant !is null) {
                 unitInfoPanel.draw;
             }
+
+            version (fluid) fluidGUI.draw;
 
             version (drawFPS) DrawFPS(20, 20);
             EndDrawing();

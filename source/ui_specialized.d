@@ -4,6 +4,9 @@ import std.string;
 import std.conv;
 import vector_math;
 
+version (raygui) const bool INHERIT = false;
+else const bool INHERIT = true;
+
 class UnitInfoCard : UIElement
 {
     import vunit;
@@ -13,7 +16,7 @@ class UnitInfoCard : UIElement
     VisibleUnit unit;
     string infotext;
 
-    version (customgui) void delegate() onClick;
+    version (notRaygui) void delegate() onClick;
     
     this (VisibleUnit unit, Vector2 origin) {
         this.area = Rectangle(origin.x, origin.y, 192, 80);
@@ -30,7 +33,7 @@ class UnitInfoCard : UIElement
         this.infotext ~= "Def: "~to!string(stats.Def)~"\n";
     }
 
-    version (customgui) this(VisibleUnit unit, Vector2 origin, void delegate() onClick) {
+    version (notRaygui) this(VisibleUnit unit, Vector2 origin, void delegate() onClick) {
         this.onClick = onClick;
         this(unit, origin);
     }
@@ -48,7 +51,7 @@ class UnitInfoCard : UIElement
         return this.unit.getStats;
     }
 
-    version (customgui) override void draw(Vector2 offset = Vector2(0,0)) {
+    version (notRaygui) override void draw(Vector2 offset = Vector2(0,0)) {
         if (unit.currentTile !is null) return;
         DrawRectangleRec(offsetRect(area, offset), Color(r:250, b:230, g:245, a:200));
         DrawRectangleLinesEx(offsetRect(area, offset), 1.0f, Colors.BLACK);

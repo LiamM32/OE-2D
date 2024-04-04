@@ -75,7 +75,7 @@ class UIElement {
     
     //void setStyle();
     //void draw() {draw(Vector2(0,0));} // Returns whether the mouse is hovering.
-    abstract void draw(Vector2 offset = Vector2(0,0));
+    version (notRaygui) abstract void draw(Vector2 offset = Vector2(0,0));
 
     bool checkHover() {
         if (updateOnHover && onHover !is null && CheckCollisionPointRec(GetMousePosition, area)) {
@@ -87,7 +87,7 @@ class UIElement {
 
 enum FontStyle { serif, serif_bold, serif_italic, sans, sans_bold, }
 
-class Panel : UIElement
+version (customgui) class Panel : UIElement
 {
     Vector2 origin;
     UIElement[] children;
@@ -105,7 +105,7 @@ class Panel : UIElement
     }
 }
 
-class TextButton : UIElement
+version (customgui) class TextButton : UIElement
 {
     Rectangle area;
     UIStyle style;
@@ -187,9 +187,9 @@ class MenuList : UIElement
         version (raygui) optionString.length--;
     }
 
-    override void draw(Vector2 offset = Vector2(0,0)) {
+    version (customgui) override void draw(Vector2 offset = Vector2(0,0)) {
         offset += this.origin;
-        version (customgui) foreach(i, button; this.buttons) {
+        foreach(i, button; this.buttons) {
             button.draw(offset);
         }
         checkHover();
