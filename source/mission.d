@@ -134,7 +134,7 @@ class Mission : Map
         JSONValue playerUnitsData = parseJSON(readText("Units.json"));
         debug writeln("Opened Units.json");
         foreach (uint k, unitData; playerUnitsData.array) {
-            VisibleUnit unit = new VisibleUnit(this, unitData, factionsByName["player"]);//loadUnitFromJSON(unitData, spriteIndex, false);
+            VisibleUnit unit = new VisibleUnit(this, unitData, playerFaction);//loadUnitFromJSON(unitData, spriteIndex, false);
             availableUnits ~= unit;
             version (raygui) unitCards[unit] = new UnitInfoCard(unit, Vector2(x:k*258.0f, y:GetScreenHeight()-88.0f));
             else unitCards[unit] = new UnitInfoCard(unit, Vector2(x:k*258.0f, y:GetScreenHeight()-88.0f), delegate(){selectedUnit = unit;});
@@ -266,7 +266,7 @@ class Mission : Map
         foreach (startTile; this.startingTiles) if (startTile.occupant !is null) {
             writeln("Looking at starting tile "~to!string(startTile.x())~", "~to!string(startTile.y()));
             this.allUnits ~= startTile.occupant;
-            this.factionsByName["player"].units ~= startTile.occupant;
+            this.playerFaction.units ~= startTile.occupant;
             startTile.occupant.setLocation(startTile.x(), startTile.y());
         }
         this.startingTiles.length = 0;
@@ -281,7 +281,7 @@ class Mission : Map
     void playerTurn() {
         import item;
 
-        this.factionsByName["player"].turnReset();
+        this.playerFaction.turnReset();
         
         Vector2 mousePosition = GetMousePosition();
         bool onGrid = true;
@@ -349,15 +349,29 @@ class Mission : Map
                     playerAction = Action.Items;
                     auto itemsMenu = vframe();
                     foreach (item; selectedUnit.inventory) {
-                        itemsMenu.children ~= button(.layout!"fill", item.name, delegate {writeln("Item actions not yet implemented"); menuPanel = unitMenuPanel;}); // TODO: Fix this when item actions are implemented.
+                        itemsMenu.children ~= button(.layout!"fill", item.name, delegate {
+                            PopupFrame itemActionsMenu = popupFrame();
+                            foreach(option; item.getOptions(selectedUnit)) {
+                                itemActionsMenu.children ~= button(option.name, delegate {
+                                    option.action(selectedUnit);
+                                    menuPanel = unitMenuPanel;
+                                    itemActionsMenu.toRemove = true;
+                                });
+                            }
+                            spawnPopup(itemsMenu.tree, itemActionsMenu);
+                            //menuPanel = unitMenuPanel;
+                        }); // TODO: Fix this when item actions are implemented.
                     }
                     itemsMenu.children ~= innerBackButton;
                     menuPanel = itemsMenu;
                 });
-                auto outerBackButton = button(.layout!"fill", "Back", delegate {selectedUnit = null; menuPanel = null;});
+                auto outerBackButton = button(.layout!"fill", "Back", delegate {selectedUnit = null; menuPanel.clear;});
                 unitMenuPanel = vframe(.layout!("end", "end"), moveButton, attackButton, itemsButton, outerBackButton);
             }
+            auto finishButton = button("End Turn", delegate {playerAction = Action.EndTurn;});
             fluidGUI.addChild(menuPanel, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight), drop:MapDropVector(MapDropDirection.end, MapDropDirection.automatic)));
+            fluidGUI.addChild(finishButton, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight), drop:MapDropVector(MapDropDirection.end, MapDropDirection.automatic)));
+            fluidGUI.updateSize;
         } else version (raygui) {
             Rectangle moveButton = {x:GetScreenWidth-96, y:GetScreenHeight-(32*5), 96, 32};
             Rectangle attackButton = {x:GetScreenWidth-96, y:GetScreenHeight-(32*4), 96, 32};
@@ -465,12 +479,16 @@ class Mission : Map
                     }
                 }
             } else {
-                ushort remaining = cast(short)(factionsByName["player"].units.length * 2);
-                foreach (unit; factionsByName["player"].units) {
-                    remaining -= unit.hasActed;
-                    remaining -= unit.finishedTurn;
+                short remaining = cast(short)(playerFaction.units.length * 4);
+                foreach (unit; playerFaction.units) {
+                    if (unit.hasActed) remaining -= 2;
+                    if (unit.finishedTurn) remaining--;
+                    if (unit.MvRemaining < unit.Mv) {
+                        remaining--;
+                        if (unit.MvRemaining <= unit.Mv>>1) remaining--;
+                    }
                 }
-                if (remaining < 3 && playerAction != Action.EndTurn) {
+                if (remaining < playerFaction.units.length*2 && playerAction != Action.EndTurn) {
                     version (customgui) {
                         finishButton.draw;
                     } version (raygui) {
