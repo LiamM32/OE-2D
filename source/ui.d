@@ -75,7 +75,7 @@ class UIElement {
     
     //void setStyle();
     //void draw() {draw(Vector2(0,0));} // Returns whether the mouse is hovering.
-    version (notRaygui) abstract void draw(Vector2 offset = Vector2(0,0));
+    version (raygui) {} else abstract void draw(Vector2 offset = Vector2(0,0));
 
     bool checkHover() {
         if (updateOnHover && onHover !is null && CheckCollisionPointRec(GetMousePosition, area)) {

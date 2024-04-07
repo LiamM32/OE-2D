@@ -245,7 +245,7 @@ class Mission : Map
                         break;
                     }
                 } else version (raygui) {
-                    if (GuiButton(startButton, "Start Mission".toStringz)) {
+                    if (GuiButton(startButton, "Start Mission")) {
                         EndDrawing();
                         break;
                     }
@@ -385,6 +385,7 @@ class Mission : Map
         debug Texture arrow = LoadTexture("../sprites/arrow.png");
 
         debug verifyEverything();
+        debug uint frameNumber;
 
         while(!WindowShouldClose())
         {
@@ -459,40 +460,37 @@ class Mission : Map
                         }
                         unitMenuPanel.draw();
                     } version (raygui) {
-                        if (selectedUnit.MvRemaining > 1) if (GuiButton(moveButton, "#150#Move".toStringz)) playerAction = Action.Move;
-                        if (!selectedUnit.hasActed) if (GuiButton(attackButton, "#155#Attack".toStringz)) playerAction = Action.Attack;
-                        if (GuiButton(itemsButton, "Items".toStringz)) playerAction = Action.Items;
-                        if (GuiButton(waitButton, "#149#Wait ".toStringz)) {
+                        if (selectedUnit.MvRemaining > 1) if (GuiButton(moveButton, "#150#Move")) playerAction = Action.Move;
+                        if (!selectedUnit.hasActed) if (GuiButton(attackButton, "#155#Attack")) playerAction = Action.Attack;
+                        if (GuiButton(itemsButton, "Items")) playerAction = Action.Items;
+                        if (GuiButton(waitButton, "#149#Wait ")) {
                             selectedUnit.hasActed = true;
                             selectedUnit.finishedTurn = true;
                             playerAction = Action.Nothing;
                             selectedUnit = null;
                         }
-                        if (GuiButton(backButton, "Back".toStringz)) selectedUnit = null;
+                        if (GuiButton(backButton, "Back")) selectedUnit = null;
                     }
                 } else {
                     version (customgui) {
                         if (playerAction == Action.Items) itemsList.draw;
                         backButton.draw;
                     } version (raygui) {
-                        if (GuiButton(backButton, "Back".toStringz)) playerAction = Action.Nothing;
+                        if (GuiButton(backButton, "Back")) playerAction = Action.Nothing;
                     }
                 }
             } else {
-                short remaining = cast(short)(playerFaction.units.length * 4);
+                short remaining = 0;
                 foreach (unit; playerFaction.units) {
-                    if (unit.hasActed) remaining -= 2;
-                    if (unit.finishedTurn) remaining--;
-                    if (unit.MvRemaining < unit.Mv) {
-                        remaining--;
-                        if (unit.MvRemaining <= unit.Mv>>1) remaining--;
-                    }
+                    if (unit.hasActed) remaining++;
+                    if (unit.finishedTurn) remaining++;
+                    if (unit.MvRemaining < unit.Mv) remaining++;
                 }
-                if (remaining < playerFaction.units.length*2 && playerAction != Action.EndTurn) {
+                if (remaining >= playerFaction.units.length+1 && playerAction != Action.EndTurn) {
                     version (customgui) {
                         finishButton.draw;
                     } version (raygui) {
-                        if (GuiButton(finishButton, "Finish turn".toStringz)) playerAction = Action.EndTurn;
+                        if (GuiButton(finishButton, "Finish turn")) playerAction = Action.EndTurn;
                     }
                 }
             }
@@ -512,6 +510,8 @@ class Mission : Map
                 }
                 if (allFinished) break;
             }
+
+            debug frameNumber++;
         }
 
         selectedUnit = null;
