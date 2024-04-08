@@ -34,7 +34,6 @@ class Mission : Map
     static SpriteLoader spriteLoader;
     version (customgui) UIStyle style;
     version (fluid) MapFrame fluidGUI;
-    Texture2D[] sprites;
     Texture2D gridMarker;
     
     Camera2D camera;
@@ -45,7 +44,7 @@ class Mission : Map
     StopWatch missionTimer;
     VisibleTile[] startingTiles;
     
-    Unit selectedUnit;
+    VisibleUnit selectedUnit;
 
 
     this() {
@@ -147,15 +146,9 @@ class Mission : Map
         }
 
         version (fluid) {
-            //import fluid;
             auto startButton = button(.layout!("end", "start"), "Start Mission", delegate {
                 this.endTurn();
             });
-            /*fluidGUI.addChild(startButton, MapPosition(
-                coords: Vector2(GetScreenWidth-160, menuBox.y-16),
-                drop: MapDropVector(MapDropDirection.automatic, MapDropDirection.automatic)
-                ));*/
-            import raylib;
         } else version (raygui) {
             Rectangle startButton = {x:GetScreenWidth()-160, y:menuBox.y-16, width:160, height:32};
         } else version (customgui) {
@@ -214,7 +207,7 @@ class Mission : Map
                         startTile.occupant = selectedUnit;
                         
                         if (previousOccupant !is null) previousOccupant.currentTile = null;
-                        selectedUnit = previousOccupant;
+                        selectedUnit = cast(VisibleUnit)previousOccupant;
                     }
                 }
             }
@@ -233,8 +226,8 @@ class Mission : Map
             }
             version (fluid) { if (!startButtonAvailable && unitsDeployed*missionTimer.peek() >= msecs(WAITTIME*startingTiles.length)) {
                 fluidGUI.addChild(startButton, MapPosition(
-                    coords: Vector2(GetScreenWidth-160, menuBox.y-16),
-                    drop: MapDropVector(MapDropDirection.automatic, MapDropDirection.automatic)
+                    coords: Vector2(GetScreenWidth, menuBox.y-16),
+                    drop: MapDropVector(MapDropDirection.end, MapDropDirection.automatic)
                 ));
                 startButtonAvailable = true;
             }} else if (startButtonAvailable || unitsDeployed > 0 && unitsDeployed*missionTimer.peek() >= msecs(WAITTIME*startingTiles.length)) {
@@ -338,6 +331,7 @@ class Mission : Map
             TextButton finishButton = new TextButton(Rectangle(x:GetScreenWidth-128, y:GetScreenHeight-32, 128, 32), "Finish turn", 20, delegate {playerAction = Action.EndTurn;});
             TextButton backButton = new TextButton(Rectangle(x:GetScreenWidth-80, y:GetScreenHeight-32, 80, 32), "Back", 20, delegate {playerAction = Action.Nothing;});
             
+            AttackInfoPanel attackInfoPanel;
         } else version (fluid) {
             Frame unitMenuPanel;
             auto menuPanel = nodeSlot!Node();
@@ -359,7 +353,6 @@ class Mission : Map
                                 });
                             }
                             spawnPopup(itemsMenu.tree, itemActionsMenu);
-                            //menuPanel = unitMenuPanel;
                         }); // TODO: Fix this when item actions are implemented.
                     }
                     itemsMenu.children ~= innerBackButton;
@@ -369,7 +362,7 @@ class Mission : Map
                 unitMenuPanel = vframe(.layout!("end", "end"), moveButton, attackButton, itemsButton, outerBackButton);
             }
             auto finishButton = button("End Turn", delegate {playerAction = Action.EndTurn;});
-            fluidGUI.addChild(menuPanel, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight), drop:MapDropVector(MapDropDirection.end, MapDropDirection.automatic)));
+            fluidGUI.addChild(menuPanel, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight-24), drop:MapDropVector(MapDropDirection.end, MapDropDirection.end)));
             fluidGUI.addChild(finishButton, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight), drop:MapDropVector(MapDropDirection.end, MapDropDirection.automatic)));
             fluidGUI.updateSize;
         } else version (raygui) {
@@ -409,6 +402,8 @@ class Mission : Map
             drawGround();
 
             if (selectedUnit !is null) switch(playerAction) {
+                if (!selectedUnit.acting) DrawRectangleRec((cast(VisibleTile)selectedUnit.currentTile).rect, Colours.Highlight);
+                
                 case Action.Move:
                     foreach (tile; selectedUnit.getReachable!Tile) {
                         DrawRectangleRec((cast(VisibleTile)tile).rect, Color(60, 240, 120, 30));
@@ -434,17 +429,25 @@ class Mission : Map
             }
             if (onGrid && cursorTile !is null) {
                 if (leftClick && cursorTile.occupant !is null && playerAction == Action.Nothing && cursorTile.occupant.faction == playerFaction) {
-                    selectedUnit = cursorTile.occupant;
+                    selectedUnit = cast(VisibleUnit)cursorTile.occupant;
                     selectedUnit.updateReach();
                     version (fluid) menuPanel = unitMenuPanel;
                 }
 
-                if (unitInfoPanel.unit != cursorTile.occupant) unitInfoPanel.resetToUnit(cursorTile.occupant);
+                if (unitInfoPanel.unit != cursorTile.occupant) {
+                    unitInfoPanel.resetToUnit(cursorTile.occupant);
+                    version (customgui) if (playerAction==Action.Attack) {
+                        if (cursorTile.occupant !is null && canFind(playerFaction.enemies, cursorTile.occupant.faction)) attackInfoPanel = new AttackInfoPanel(selectedUnit, cursorTile.occupant, true, Vector2(0,0));
+                        else {
+                            destroy(attackInfoPanel);
+                            attackInfoPanel = null;
+                        }
+                    }
+                }
 
                 DrawRectangleRec(cursorTile.rect, Colours.Highlight); // Highlights the tile where the cursor is.
             }
 
-            //if (selectedUnit !is null) DrawRectangleRec((cast(VisibleTile)selectedUnit.currentTile).rect, Colours.Highlight);
             drawGridMarkers(missionTimer.peek.total!"msecs");
             drawUnits();
             EndMode2D();
@@ -475,6 +478,7 @@ class Mission : Map
                     version (customgui) {
                         if (playerAction == Action.Items) itemsList.draw;
                         backButton.draw;
+                        if (playerAction == Action.Attack && attackInfoPanel !is null) attackInfoPanel.draw;
                     } version (raygui) {
                         if (GuiButton(backButton, "Back")) playerAction = Action.Nothing;
                     }
@@ -483,10 +487,10 @@ class Mission : Map
                 short remaining = 0;
                 foreach (unit; playerFaction.units) {
                     if (unit.hasActed) remaining++;
-                    if (unit.finishedTurn) remaining++;
                     if (unit.MvRemaining < unit.Mv) remaining++;
                 }
-                if (remaining >= playerFaction.units.length+1 && playerAction != Action.EndTurn) {
+                debug DrawText(("Remaining = "~remaining.to!string).toStringz, 4, 4, 16, Colours.Crimson);
+                if (remaining >= playerFaction.units.length && playerAction != Action.EndTurn) {
                     version (customgui) {
                         finishButton.draw;
                     } version (raygui) {
@@ -562,19 +566,15 @@ class Mission : Map
         
         opacity = cast(ubyte) (sinwave/4);
         foreach (unit; cast(VisibleUnit[]) playerFaction.units) {
-            DrawEllipse(cast(int)unit.position.x+TILEWIDTH/2, cast(int)unit.position.y+TILEHEIGHT/2, cast(float)(TILEWIDTH*0.4375), cast(float)(TILEHEIGHT*0.4375), Color(220,250,250,opacity));
+            if (unit !is selectedUnit || unit.acting) DrawEllipse(cast(int)unit.position.x+TILEWIDTH/2, cast(int)unit.position.y+TILEHEIGHT/2, cast(float)(TILEWIDTH*0.4375), cast(float)(TILEHEIGHT*0.4375), Color(220,250,250,opacity));
+            else DrawRectangleRec((cast(VisibleTile)unit.currentTile).rect, Colours.Highlight);
         }
     }
 
     void drawUnits() {
         Color shade;
         foreach (VisibleUnit unit; cast(VisibleUnit[]) allUnits) {
-            shade = Colors.WHITE;
-            if (phase==GamePhase.PlayerTurn && unit.faction == playerFaction) {
-                if (unit.hasActed) shade = Color(235,235,235,255);
-                //else DrawEllipse(cast(int)unit.position.x+TILEWIDTH/2, cast(int)unit.position.y+TILEHEIGHT/2, cast(float)(TILEWIDTH*0.4375), cast(float)(TILEHEIGHT*0.4375), Colours.Highlight);
-            }
-            DrawTextureV(unit.sprite, unit.position+Vector2(0.0f,-30.0f), shade);
+            unit.draw;
         }
     }
 

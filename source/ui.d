@@ -47,17 +47,17 @@ class UIStyle
     Color baseColour;
     Color textColour;
     Color hoverColour;
-    Color areaColour;
-    float areaThickness;
+    Color outlineColour;
+    float outlineThickness;
     float padding = 0.0f;
     float lineSpacing = 1.0f;
     FontSet fontSet;
 
-    this(Color baseColour, Color textColour, Color areaColour, float areaThickness, FontSet fontSet) {
+    this(Color baseColour, Color textColour, Color outlineColour, float outlineThickness, FontSet fontSet) {
         this.baseColour = baseColour;
         this.textColour = textColour;
-        this.areaColour = areaColour;
-        this.areaThickness = areaThickness;
+        this.outlineColour = outlineColour;
+        this.outlineThickness = outlineThickness;
         this.fontSet = FontSet.getDefault;
     }
 
@@ -147,7 +147,7 @@ version (customgui) class TextButton : UIElement
             DrawRectangleRec(area, Colours.Highlight);
             if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) onClick();
         }
-        DrawRectangleLinesEx(area, style.areaThickness, style.areaColour);
+        DrawRectangleLinesEx(area, style.outlineThickness, style.outlineColour);
     }
 }
 
@@ -215,7 +215,7 @@ class MenuList : UIElement
         DrawRectangleRec(offsetRect(area, offset), style.baseColour);
         DrawTextEx(font, this.text.toStringz, textAnchor+offset, fontSize, style.lineSpacing, style.textColour);
         if(CheckCollisionPointRec(GetMousePosition(), area)) DrawRectangleRec(area, Colours.Highlight);
-        DrawRectangleLinesEx(area, style.areaThickness, style.areaColour);
+        DrawRectangleLinesEx(area, style.outlineThickness, style.outlineColour);
     }
 }*/
 

@@ -17,9 +17,24 @@ class VisibleUnit : Unit
     Texture2D sprite;
     Vector2 position;
     ActionStep[] queue;
+    Message message;
 
     version (fluid) void delegate() onClick;
 
+    static this() {
+        version (signals) {}
+        else {
+            onHit = delegate(Unit unit) {
+                auto vunit = cast(VisibleUnit)unit;
+                vunit.message = vunit.newMessage("Hit");
+            };
+            onMiss = delegate(Unit unit) {
+                auto vunit = cast(VisibleUnit)unit;
+                vunit.message = vunit.newMessage("Missed");
+            };
+        }
+    }
+    
     this(Mission map, JSONValue unitData, Faction faction = null) {
         import std.string:toStringz;
         import std.path : buildNormalizedPath;
@@ -33,6 +48,14 @@ class VisibleUnit : Unit
         this.sprite = LoadTexture(spritePath.toStringz);
 
         if (this.faction is null) this.faction = faction;
+    }
+
+    void draw() {
+        if (queue.length > 0) act;
+        
+        DrawTextureV(sprite, position+Vector2(0.0f, -30.0f), Colors.WHITE);
+
+        if (message !is null) message.draw;
     }
 
     bool acting() {
@@ -136,5 +159,36 @@ class VisibleUnit : Unit
     struct ActionStep {
         Action action;
         Tile tile;
+    }
+
+    Message newMessage(string text) {return new Message(text);}
+    
+    class Message {
+        import core.memory;
+        import std.datetime.stopwatch;
+        import ui;
+        
+        string text;
+        Vector2 position;
+        StopWatch timer;
+
+        this(string text) {
+            timer = StopWatch(AutoStart.yes);
+            this.text = text;
+            float textWidth = MeasureTextEx(FontSet.getDefault.sans, cast(char*)text, 12, 1).x;
+            position = this.outer.position;
+            position.x += (TILEWIDTH - textWidth) / 2;
+            this.position.y -= 24;
+        }
+
+        void draw() {
+            DrawTextEx(FontSet.getDefault.sans, cast(char*)text, position, 12, 1, Color(240,5,5,250));
+            position.y -= GetFrameTime*8;
+            if (timer.peek.total!"msecs" > 1500) {
+                this.outer.message = null;
+                //GC.free(this);
+                destroy(this);
+            }
+        }
     }
 }

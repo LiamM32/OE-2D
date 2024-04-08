@@ -7,6 +7,7 @@
         "MHP": 80,
         "Str": 24,
         "Def": 16,
+        "Dex": 13,
         "skills": {
             "blade": 8
         },
@@ -30,6 +31,7 @@
         "MHP": 75,
         "Str": 21,
         "Def": 14,
+        "Dex": 26,
         "skills": {
             "bow": 11
         },

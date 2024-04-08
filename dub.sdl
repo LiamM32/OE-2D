@@ -14,6 +14,8 @@ libs "raylib"
 dependency "x11" version="*" platform="linux"
 libs "X11" "Xrandr" platform="linux"
 
+versions "raylib"
+
 configuration "customgui" {
     versions "customgui" "syncFPS"
     dependency "raylib-d" version="*" config="moreCaching"
