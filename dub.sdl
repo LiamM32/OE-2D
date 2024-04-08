@@ -7,6 +7,8 @@ targetName "oe-raylib"
 targetType "executable"
 mainSourceFile "source/app.d"
 
+excludedSourceFiles "source/renderer.d"
+
 dependency "open_emblem" version="*" path="../"
 dependency "raylib-d" version="*"
 libs "raylib"
