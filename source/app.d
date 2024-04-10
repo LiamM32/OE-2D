@@ -18,12 +18,12 @@ void main()
 	version (syncFPS) SetTargetFPS(getRefreshRate);
     version (raygui) setRayGuiStyle();
 
-    scope(exit) CloseWindow();
+    //scope(exit) CloseWindow();
 
     Mission mission = new Mission("../maps/test-map.json");
     mission.run();
-    writeln("Mission constructor finished.");
     CloseWindow();
+    return;
 }
 
 uint getRefreshRate() {

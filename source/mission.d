@@ -46,7 +46,6 @@ class Mission : Map
     
     VisibleUnit selectedUnit;
 
-
     this() {
         JSONValue missionData = parseJSON(readText("../maps/Test_battlefield.json"));
         this(missionData);
@@ -567,7 +566,7 @@ class Mission : Map
         opacity = cast(ubyte) (sinwave/4);
         foreach (unit; cast(VisibleUnit[]) playerFaction.units) {
             if (unit !is selectedUnit || unit.acting) DrawEllipse(cast(int)unit.position.x+TILEWIDTH/2, cast(int)unit.position.y+TILEHEIGHT/2, cast(float)(TILEWIDTH*0.4375), cast(float)(TILEHEIGHT*0.4375), Color(220,250,250,opacity));
-            else DrawRectangleRec((cast(VisibleTile)unit.currentTile).rect, Colours.Highlight);
+            else DrawRectangleRec((cast(VisibleTile)unit.currentTile).rect, Colours.Bluelight);
         }
     }
 

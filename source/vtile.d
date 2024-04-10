@@ -1,6 +1,6 @@
 import std.json;
 import raylib;
-import tile;
+public import tile;
 import common;
 import constants;
 import spriteLoader;

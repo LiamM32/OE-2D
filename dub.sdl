@@ -1,4 +1,4 @@
-name "open_emblem_2D"
+name "open_emblem_2d"
 description "Raylib front-end for Open Emblem."
 authors "Liam McGillivray"
 copyright "Copyright © 2024, Liam McGillivray"
@@ -13,6 +13,8 @@ libs "raylib"
 
 dependency "x11" version="*" platform="linux"
 libs "X11" "Xrandr" platform="linux"
+
+excludedSourceFiles "source/renderer.d" //Will soon be added to project.
 
 versions "raylib"
 

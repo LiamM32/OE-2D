@@ -84,7 +84,7 @@ class VisibleUnit : Unit
         }
         import std.math;
         if (abs(position.x-xlocation*TILEWIDTH)+abs(position.y-ylocation*TILEHEIGHT) == 0) {
-            writeln(this.name~" diff ", (position.x-xlocation*TILEWIDTH), ", ", (position.y-ylocation*TILEHEIGHT));
+            debug writeln(this.name~" diff ", (position.x-xlocation*TILEWIDTH), ", ", (position.y-ylocation*TILEHEIGHT));
         }
         return true;
     }
