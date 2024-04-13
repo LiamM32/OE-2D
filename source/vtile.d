@@ -1,7 +1,7 @@
 import std.json;
 import raylib;
-public import tile;
-import common;
+public import oe.tile;
+import oe.common;
 import constants;
 import spriteLoader;
 

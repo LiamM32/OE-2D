@@ -112,7 +112,7 @@ class UnitInfoPanel
 
 class AttackInfoPanel
 {
-    import unit;
+    import oe.unit;
     
     static UIStyle style;
     Rectangle area;
@@ -141,7 +141,7 @@ class AttackInfoPanel
         textAnchor[0].x = area.x + (area.width - MeasureTextEx(style.fontSet.sans, lines[0].toStringz, 14, 1).x)/2;
         lines[1] = "Damage: " ~ attackInfo.damage.to!string;
         textAnchor[1] = Vector2(x:area.x+4, y:area.y+17);
-        lines[2] = "Hit chance: " ~ (attackInfo.hitChance).to!string;
+        lines[2] = "Hit chance: " ~ ((attackInfo.hitChance)/10.0f).to!string~"%";
         textAnchor[2] = Vector2(x:area.x+4, y:area.y+33);
     }
 
@@ -152,4 +152,12 @@ class AttackInfoPanel
         DrawTextEx(style.fontSet.sans, lines[2].toStringz, textAnchor[2], 14, 1, style.textColour);
         DrawRectangleLinesEx(area, style.outlineThickness, style.outlineColour);
     }
+}
+
+class AttackSpectrumPanel : UIElement
+{
+    import oe.unit;
+
+    Unit attacker; Unit target;
+    AttackSpectrum attackSpectrum;
 }

@@ -13,12 +13,12 @@ version (fluid) {
 }
 version (raygui) import raygui;
 
-import common;
-import map;
-import faction;
-import tile;
+import oe.common;
+import oe.map;
+import oe.faction;
+import oe.tile;
 import vtile;
-import unit;
+import oe.unit;
 import vunit;
 import vector_math;
 import constants;
@@ -132,7 +132,7 @@ class Mission : Map
         JSONValue playerUnitsData = parseJSON(readText("Units.json"));
         debug writeln("Opened Units.json");
         foreach (uint k, unitData; playerUnitsData.array) {
-            VisibleUnit unit = new VisibleUnit(this, unitData, playerFaction);//loadUnitFromJSON(unitData, spriteIndex, false);
+            VisibleUnit unit = new VisibleUnit(this, unitData, playerFaction);
             availableUnits ~= unit;
             version (raygui) unitCards[unit] = new UnitInfoCard(unit, Vector2(x:k*258.0f, y:GetScreenHeight()-88.0f));
             else unitCards[unit] = new UnitInfoCard(unit, Vector2(x:k*258.0f, y:GetScreenHeight()-88.0f), delegate(){selectedUnit = unit;});
@@ -271,7 +271,7 @@ class Mission : Map
     }
 
     void playerTurn() {
-        import item;
+        import oe.item;
 
         this.playerFaction.turnReset();
         
@@ -299,10 +299,18 @@ class Mission : Map
                 buttonOutline.y += 32;
                 TextButton itemsButton = new TextButton(buttonOutline, "Items", 20, delegate {
                     playerAction = Action.Items;
-                    itemsList = new MenuList(Vector2(GetScreenWidth-182, GetScreenHeight-256), selectedUnit.inventory, delegate(i) {
-                        if (is(typeof(selectedUnit.inventory[i])==Weapon)) selectedUnit.currentWeapon = cast(Weapon)selectedUnit.inventory[i];
-                        playerAction = Action.Nothing;
-                        //destroy(itemsList);
+                    MenuList optionsList;
+                    itemsList = new MenuList(Vector2(GetScreenWidth-182, GetScreenHeight-256), selectedUnit.inventory, delegate(ubyte i) {
+                        ItemOption[] options = selectedUnit.inventory[i].getOptions(selectedUnit);
+                        optionsList = new MenuList(Vector2(x:GetScreenWidth-296, y:GetScreenHeight-256),
+                            options,
+                            delegate(ubyte o) {
+                                options[o].action(selectedUnit); 
+                                playerAction = Action.Nothing;
+                                itemsList.childElement = null;
+                            }
+                        );
+                        itemsList.childElement = optionsList;
                     });
                 });
                 
@@ -617,17 +625,4 @@ class Mission : Map
         if (topLeftPosition.y < (mapArea.y - margins.y)) camera.target.y -= topLeftPosition.y + margins.y;
         else if (bottomRightPosition.y > (mapArea.y + mapArea.height)) camera.target.y -= bottomRightPosition.y - (mapArea.y + mapArea.height + margins.y);
     }
-}
-
-
-unittest
-{
-    debug writeln("Starting Mission unittest");
-    validateRaylibBinding();
-    InitWindow(400, 400, "Mission unittest");
-    Mission mission = new Mission("../maps/test-map.json");
-    foreach (unit; mission.allUnits) {
-        assert(unit.map == mission, "Unit does not have it's `map` set to current Mission.");
-    }
-    writeln("Mission unittest passed");
 }

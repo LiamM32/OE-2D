@@ -2,6 +2,7 @@ import std.file;
 import std.json;
 import std.string:toStringz;
 import raylib;
+import oe.common: Direction;
 
 class SpriteLoader
 {
@@ -28,11 +29,28 @@ class SpriteLoader
         return currentLoader;
     }
 
-    Texture2D getSprite(string name) {
+    Texture2D getSprite(string name, Direction rotation=Direction.N) {
         if (name in spriteIndex) return spriteIndex[name];
         else if (name in spritePaths) {
             spriteIndex[name] = LoadTexture(spritePaths[name].toStringz);
         }
         return spriteIndex[name];
+    }
+}
+
+class Sprite
+{
+    Texture2D texture;
+
+    this(string path) {
+        texture = LoadTexture(path.toStringz);
+    }
+    
+    this(Image image) {
+        texture = LoadTextureFromImage(image);
+    }
+
+    ~this() {
+        UnloadTexture(texture);
     }
 }

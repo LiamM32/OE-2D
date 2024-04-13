@@ -1,14 +1,15 @@
 debug import std.stdio;
+import std.datetime.stopwatch;
 
 import std.json;
 import raylib;
 import constants;
-public import unit;
+public import oe.unit;
 import spriteSet;
 import mission;
-import tile;
-import common;
-import faction;
+import oe.tile;
+import oe.common;
+import oe.faction;
 import vector_math;
 
 class VisibleUnit : Unit
@@ -18,6 +19,9 @@ class VisibleUnit : Unit
     Vector2 position;
     ActionStep[] queue;
     Message message;
+
+    SpriteAction spriteState;
+    StopWatch spriteTimer;
 
     version (fluid) void delegate() onClick;
 
@@ -31,6 +35,10 @@ class VisibleUnit : Unit
             onMiss = delegate(Unit unit) {
                 auto vunit = cast(VisibleUnit)unit;
                 vunit.message = vunit.newMessage("Missed");
+            };
+            onDeath = delegate(Unit unit) {
+                auto vunit = cast(VisibleUnit)unit;
+                vunit.setSpriteState(SpriteAction.fall);
             };
         }
     }
@@ -48,6 +56,8 @@ class VisibleUnit : Unit
         this.sprite = LoadTexture(spritePath.toStringz);
 
         if (this.faction is null) this.faction = faction;
+
+        spriteTimer = StopWatch(AutoStart.yes);
     }
 
     void draw() {
@@ -67,10 +77,12 @@ class VisibleUnit : Unit
         bool done;
         switch (queue[0].action) {
             case Action.Move:
+                setSpriteState(SpriteAction.walk);
                 stepTowards(queue[0].tile);
                 if (position == gridToPixels(queue[0].tile.location)) done = true;
                 break;
             case Action.Attack:
+                setSpriteState(SpriteAction.attack);
                 super.attack(queue[0].tile.x, queue[0].tile.y);
                 done = true;
                 break;
@@ -97,6 +109,8 @@ class VisibleUnit : Unit
 
     override bool move(int x, int y) {
         import core.thread.osthread;
+
+        spriteTimer.reset;
         
         if (this.tileReach[x][y].reachable) {
             Tile[] path = getPath!Tile(Vector2i(x,y));
@@ -117,18 +131,7 @@ class VisibleUnit : Unit
         } else return false;
     }
 
-    void followPath (TileAccess[] path) {
-        Vector2 destination = gridToPixels(path[$-1].tile.location);
-        while (this.position != destination) {
-            stepTowards(path[$-1].tile);
-        }
-    }
-
     void stepTowards (Tile tile) { stepTowards(tile.x, tile.y);}
-    
-    void stepTowards() {
-        stepTowards(this.xlocation, this.ylocation);
-    }
     
     float stepTowards (int x, int y, bool trig=false) {
         import std.algorithm.comparison;
@@ -145,6 +148,14 @@ class VisibleUnit : Unit
         Vector2 step = position - initial;
         
         return abs(max(position.x/TILEWIDTH, position.y/TILEHEIGHT));
+    }
+
+    bool setSpriteState (SpriteAction action) {
+        if (spriteState != action ) {
+            spriteTimer.reset;
+            spriteState = action;
+            return true;
+        } else return false;
     }
 
     debug {

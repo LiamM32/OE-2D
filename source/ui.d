@@ -7,8 +7,8 @@ import std.string: toStringz;
 import std.algorithm.comparison;
 import std.conv;
 import vunit;
-import unit;
-import common;
+import oe.unit;
+import oe.common;
 import vector_math;
 
 class FontSet {
@@ -157,6 +157,7 @@ class MenuList : UIElement
         UIStyle style;
         TextButton[] buttons;
         void delegate(ubyte) action;
+        UIElement childElement;
     } version (raygui) {
         Rectangle[] buttonRects;
         string optionString;
@@ -193,6 +194,7 @@ class MenuList : UIElement
             button.draw(offset);
         }
         checkHover();
+        if (childElement !is null) childElement.draw;
     }
 }
 
