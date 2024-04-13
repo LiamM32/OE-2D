@@ -4,8 +4,8 @@ import std.string: toStringz;
 import std.algorithm.comparison;
 import std.conv;
 import vunit;
-import unit;
-import common;
+import oe.unit;
+import oe.common;
 
 class FontSet {
     private static FontSet defaultSet;

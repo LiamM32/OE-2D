@@ -1,7 +1,7 @@
 import std.json;
 import raylib;
-import tile;
-import common;
+import oe.tile;
+import oe.common;
 import constants;
 
 class VisibleTile : Tile//T!VisibleTile

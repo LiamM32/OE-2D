@@ -1,8 +1,8 @@
 import std.conv;
 import std.string : toStringz;
 import raylib;
-import unit;
-import common;
+import oe.unit;
+import oe.common;
 
 class UnitSpriteSet
 {

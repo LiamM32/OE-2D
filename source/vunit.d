@@ -1,12 +1,12 @@
 import std.json;
 import raylib;
 import constants;
-import unit;
+import oe.unit;
 import spriteSet;
 import mission;
-import tile;
-import common;
-import faction;
+import oe.tile;
+import oe.common;
+import oe.faction;
 
 class VisibleUnit : Unit
 {

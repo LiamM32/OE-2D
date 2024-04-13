@@ -11,12 +11,12 @@ version (Fluid) {
 } else import raylib;
 version (raygui) import raygui;
 
-import common;
-import map;
-import faction;
-import tile;
+import oe.common;
+import oe.map;
+import oe.faction;
+import oe.tile;
 import vtile;
-import unit;
+import oe.unit;
 import vunit;
 import vector_math;
 import constants;
@@ -276,7 +276,7 @@ class Mission : Map
     }
 
     void playerTurn() {
-        import item;
+        import oe.item;
 
         this.factionsByName["player"].turnReset();
         

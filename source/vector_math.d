@@ -1,5 +1,5 @@
 import raylib;
-import common;
+import oe.common;
 
 Vector2 rectDest(Rectangle rect, Vector2 offset, bool otherCorner = false) { //Determines where to place a rectangle by adding it's built-in x and y values to an offset.
     Vector2 location = offset;
