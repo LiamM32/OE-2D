@@ -7,7 +7,7 @@ import spriteLoader;
 
 class VisibleTile : Tile//T!VisibleTile
 {
-    Texture2D[2] sprites; // `sprite[0]` is the ground sprite.
+    Sprite[2] sprites; // `sprite[0]` is the ground sprite.
     Rectangle rect;
 
     this(uint x, uint y, JSONValue tileData) {
@@ -24,6 +24,7 @@ class VisibleTile : Tile//T!VisibleTile
         this.rect.height = TILEHEIGHT;
 
         this.sprites[0] = SpriteLoader.current.getSprite(tileData["ground"].get!string);
+        this.textureID = cast(ushort)SpriteLoader.current.getSprite(tileData["ground"].get!string).id;
         if ("obstacle" in tileData) this.sprites[1] = SpriteLoader.current.getSprite(tileData["obstacle"].get!string);
 
         super(cast(int)x, cast(int)y);

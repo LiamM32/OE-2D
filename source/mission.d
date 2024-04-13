@@ -34,7 +34,7 @@ class Mission : Map
     static SpriteLoader spriteLoader;
     version (customgui) UIStyle style;
     version (fluid) MapFrame fluidGUI;
-    Texture2D gridMarker;
+    Sprite gridMarker;
     
     Camera2D camera;
     private Vector2 mousePosition;
@@ -496,7 +496,6 @@ class Mission : Map
                     if (unit.hasActed) remaining++;
                     if (unit.MvRemaining < unit.Mv) remaining++;
                 }
-                debug DrawText(("Remaining = "~remaining.to!string).toStringz, 4, 4, 16, Colours.Crimson);
                 if (remaining >= playerFaction.units.length && playerAction != Action.EndTurn) {
                     version (customgui) {
                         finishButton.draw;

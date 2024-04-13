@@ -6,10 +6,11 @@ import oe.common: Direction;
 
 class SpriteLoader
 {
-    static SpriteLoader currentLoader;
+    static SpriteLoader instance;
     
-    string[string] spritePaths;
-    Texture2D[string] spriteIndex;
+    string[string] pathsToSprite;
+    alias spritesByName = Sprite.spritesByName;
+    alias spritesByGLID = Sprite.spritesById;
     
     this() {
         JSONValue spritesJSON = parseJSON(readText("sprites.json"));
@@ -18,39 +19,59 @@ class SpriteLoader
         foreach (name, path; spritesJSON.object) {
             writeln(name);
             writeln(path);
-            spritePaths[name] = path.get!string;
+            pathsToSprite[name] = path.get!string;
         }
 
-        if (currentLoader is null) currentLoader = this;
+        if (instance is null) instance = this;
     }
+
+    ~this() {instance = null;}
 
     static SpriteLoader current() {
-        if (currentLoader is null) currentLoader = new SpriteLoader;
-        return currentLoader;
+        if (instance is null) instance = new SpriteLoader;
+        return instance;
     }
 
-    Texture2D getSprite(string name, Direction rotation=Direction.N) {
-        if (name in spriteIndex) return spriteIndex[name];
-        else if (name in spritePaths) {
-            spriteIndex[name] = LoadTexture(spritePaths[name].toStringz);
+    Sprite getSprite(string name, Direction rotation=Direction.N) {
+        if (name in spritesByName) return spritesByName[name];
+        else if (name in pathsToSprite) {
+            spritesByName[name] = new Sprite(pathsToSprite[name], name);
         }
-        return spriteIndex[name];
+        return spritesByName[name];
     }
 }
 
 class Sprite
 {
+    static Sprite[string] spritesByName;
+    static Sprite[uint] spritesById;
+    
     Texture2D texture;
+    alias this = texture;
+    string name;
+    string path;
 
-    this(string path) {
+    alias GLId = texture.id;
+
+    this(string path, string name = "") {
         texture = LoadTexture(path.toStringz);
+        this.path = path;
+        this.name = name;
     }
     
-    this(Image image) {
+    this(Image image, string path = "", string name = "") {
         texture = LoadTextureFromImage(image);
+        this.path = path;
+        this.name = name;
+    }
+
+    Texture opCast(Texture)() {
+        return this.texture;
     }
 
     ~this() {
-        UnloadTexture(texture);
+        if (IsWindowReady) UnloadTexture(texture);
+        if (name in spritesByName) spritesByName.remove(name);
+        if (path in spritesByName) spritesByName.remove(path);
     }
 }
