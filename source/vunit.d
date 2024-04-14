@@ -12,6 +12,8 @@ import oe.common;
 import oe.faction;
 import vector_math;
 
+import oe.item;
+
 class VisibleUnit : Unit
 {
     //UnitSpriteSet spriteSet;

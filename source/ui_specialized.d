@@ -113,6 +113,7 @@ class UnitInfoPanel
 class AttackInfoPanel
 {
     import oe.unit;
+    import oe.item;
     
     static UIStyle style;
     Rectangle area;

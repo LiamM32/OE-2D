@@ -6,6 +6,8 @@ license "GPL-3.0-or-later"
 targetName "oe-2d"
 targetType "executable"
 mainSourceFile "source/app.d"
+dflags "-J=dub.selections.json"
+stringImportPaths "."
 
 dependency "open_emblem" version="*" path="../"
 dependency "raylib-d" version="*"
@@ -28,14 +30,9 @@ configuration "raygui" {
     dependency "raylib-d" version="*"
 }
 
-configuration "Fluid6" {
-    versions "fluid" "fluid6" "syncFPS"
-    dependency "fluid" version=">=0.6.0 <0.7.0"
-}
-
-configuration "Fluid7" {
-    versions "fluid" "fluid7" "syncFPS"
-    dependency "fluid" version="^0.7.0"
+configuration "Fluid" {
+    versions "fluid" "syncFPS"
+    dependency "fluid" version=">=0.6.3"
 }
 
 configuration "framerate-test" {
