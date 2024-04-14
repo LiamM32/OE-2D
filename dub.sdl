@@ -1,11 +1,13 @@
-name "open_emblem_raylib"
+name "open_emblem_2d"
 description "Raylib front-end for Open Emblem."
 authors "Liam McGillivray"
 copyright "Copyright © 2024, Liam McGillivray"
 license "GPL-3.0-or-later"
-targetName "oe-raylib"
+targetName "oe-2d"
 targetType "executable"
 mainSourceFile "source/app.d"
+dflags "-J=dub.selections.json"
+stringImportPaths "."
 
 excludedSourceFiles "source/renderer.d"
 
@@ -15,6 +17,10 @@ libs "raylib"
 
 dependency "x11" version="*" platform="linux"
 libs "X11" "Xrandr" platform="linux"
+
+excludedSourceFiles "source/renderer.d" //Will soon be added to project.
+
+versions "raylib"
 
 configuration "customgui" {
     versions "customgui" "syncFPS"
@@ -26,9 +32,9 @@ configuration "raygui" {
     dependency "raylib-d" version="*"
 }
 
-configuration "Fluid" { //This version does not work well.
-    versions "Fluid" "syncFPS"
-    dependency "fluid" version="*"
+configuration "Fluid" {
+    versions "fluid" "syncFPS"
+    dependency "fluid" version=">=0.6.3"
 }
 
 configuration "framerate-test" {

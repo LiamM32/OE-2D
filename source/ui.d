@@ -1,3 +1,6 @@
+module ui;
+
+debug import std.stdio;
 import raylib;
 version (raygui) import raygui;
 import std.string: toStringz;
@@ -6,6 +9,7 @@ import std.conv;
 import vunit;
 import oe.unit;
 import oe.common;
+import vector_math;
 
 class FontSet {
     private static FontSet defaultSet;
@@ -36,193 +40,192 @@ class FontSet {
     }
 }
 
+class UIStyle
+{
+    static UIStyle defaultStyle;
+    
+    Color baseColour;
+    Color textColour;
+    Color hoverColour;
+    Color outlineColour;
+    float outlineThickness;
+    float padding = 0.0f;
+    float lineSpacing = 1.0f;
+    FontSet fontSet;
+
+    this(Color baseColour, Color textColour, Color outlineColour, float outlineThickness, FontSet fontSet) {
+        this.baseColour = baseColour;
+        this.textColour = textColour;
+        this.outlineColour = outlineColour;
+        this.outlineThickness = outlineThickness;
+        this.fontSet = FontSet.getDefault;
+    }
+
+    static UIStyle getDefault() {
+        if (defaultStyle is null) defaultStyle = new UIStyle(Colours.Paper, Colors.BLACK, Colors.BROWN, 1.0f, FontSet.getDefault);
+        return defaultStyle;
+    }
+}
+
+class UIElement {
+    static void delegate() onHover;
+    protected bool updateOnHover = true;
+    UIStyle style;
+    Rectangle area;
+    
+    //void setStyle();
+    //void draw() {draw(Vector2(0,0));} // Returns whether the mouse is hovering.
+    version (raygui) {} else abstract void draw(Vector2 offset = Vector2(0,0));
+
+    bool checkHover() {
+        if (updateOnHover && onHover !is null && CheckCollisionPointRec(GetMousePosition, area)) {
+            onHover();
+            return true;
+        } else return false;
+    }
+}
+
 enum FontStyle { serif, serif_bold, serif_italic, sans, sans_bold, }
 
-class TextButton
+version (customgui) class Panel : UIElement
 {
-    Rectangle outline;
+    Vector2 origin;
+    UIElement[] children;
+
+    this(Vector2 origin, UIElement[] children = []) {
+        this.origin = origin;
+        this.children = children;
+    }
+    
+    override void draw(Vector2 offset = Vector2(0,0)) {
+        bool hover;
+        foreach (childElement; children) {
+            childElement.draw(origin+offset);
+        }
+    }
+}
+
+version (customgui) class TextButton : UIElement
+{
+    Rectangle area;
+    UIStyle style;
     Font font;
-    Texture renderedText;
-    Color buttonColour;
-    Color fontColour;
     string text;
     float fontSize;
-    float lineSpacing = 1.0;
     Vector2 textAnchor;
+    void delegate() onClick;
 
     version(FontSet) {
         static this() {
             font = FontSet.getDefault.sans_bold;
         }
     }
-    
-    this(Rectangle outline, Font font, string text, int fontSize, Color buttonColour, bool whiteText) {
-        TextButton.font = font;
-        this(outline, text, fontSize, buttonColour, whiteText);
-    }
-    
-    this(Rectangle outline, string text, int fontSize, Color buttonColour, bool whiteText) {
-        this.outline = outline;
-        this.buttonColour = buttonColour;
+
+    this(Rectangle area, string text, int fontSize, void delegate() action, UIStyle style=null, const bool updateOnHover=true) {
+        this.area = area;
         this.text = text;
-        TextButton.fontSize = to!float(fontSize);
-        if (whiteText) TextButton.fontColour = Colors.RAYWHITE;
-        else TextButton.fontColour = Colors.BLACK;
-        this.font = FontSet.getDefault.sans_bold;
-        GenTextureMipmaps(&font.texture);
 
-        Vector2 textDimensions = MeasureTextEx(TextButton.font, text.toStringz, to!float(fontSize), lineSpacing);
-        this.textAnchor.x = outline.x + outline.width/2 - textDimensions.x/2;
-        this.textAnchor.y = outline.y + outline.height/2 - textDimensions.y/2;
+        if (style is null) style = UIStyle.getDefault;
+        this.style = style;
+        this.fontSize = fontSize;
+        this.onClick = action;
+        this.font = style.fontSet.sans_bold;
+        this.updateOnHover = updateOnHover;
+
+        Vector2 textDimensions = MeasureTextEx(font, text.toStringz, fontSize, style.lineSpacing);
+        this.textAnchor.x = area.x + (area.width - textDimensions.x) / 2; // + (textDimensions / 2); // After merging of my version of raylib-d, change to `textAnchor = area.origin + (area.dimensions - textDimensions) / 2;`.
+        this.textAnchor.y = area.y + (area.height - textDimensions.y) / 2;
     }
 
-    void draw() {
-        DrawRectangleRec(outline, buttonColour);
-        DrawTextEx(font, this.text.toStringz, textAnchor, fontSize, lineSpacing, fontColour);
-        if(CheckCollisionPointRec(GetMousePosition(), outline)) DrawRectangleRec(outline, Colours.Highlight);
-        DrawRectangleLinesEx(outline, 1.0f, fontColour);
-    }
-
-    bool button(ref bool hover) {
-        DrawRectangleRec(outline, buttonColour);
-        DrawTextEx(font, this.text.toStringz, textAnchor, fontSize, lineSpacing, fontColour);
-        if(CheckCollisionPointRec(GetMousePosition(), outline)) {
-            DrawRectangleRec(outline, Colours.Highlight);
-            hover = true;
-            if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) return true;
+    override void draw(Vector2 offset = Vector2(0,0)) {
+        bool hover;
+        Rectangle area = offsetRect(this.area, offset);
+        DrawRectangleRec(area, style.baseColour);
+        DrawTextEx(font, this.text.toStringz, textAnchor+offset, fontSize, style.lineSpacing, style.textColour);
+        if(CheckCollisionPointRec(GetMousePosition(), area)) {
+            if (updateOnHover && onHover !is null) onHover();
+            DrawRectangleRec(area, Colours.Highlight);
+            if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) onClick();
         }
-        DrawRectangleLinesEx(outline, 1.0f, fontColour);
-        return false;
-    }
-
-    debug {
-        void dump() {
-            import std.stdio;
-            writeln("Dumping info on TextButton "~to!string(this));
-            writeln(font);
-            writeln(outline);
-            writeln(buttonColour);
-            writeln(fontColour);
-            writeln(text);
-            writeln(fontSize);
-            writeln(lineSpacing);
-            writeln(textAnchor);
-        }
+        DrawRectangleLinesEx(area, style.outlineThickness, style.outlineColour);
     }
 }
 
-class UnitInfoCard
+class MenuList : UIElement
 {
-    Rectangle outline;
-    Rectangle imageFrame;
-    Font font;
-    int x;
-    int y;
-    int width;
-    int height;
-    VisibleUnit unit;
-    string infotext;
-
-    /*static this() {
-        font = FontSet.getDefault.serif;
-    }*/
-    
-    this (VisibleUnit unit, int screenx, int screeny ) {
-        this.outline = Rectangle(screenx, screeny, 192, 80);
-        this.imageFrame = Rectangle(screenx+4, screeny+4, 64, 64);
-        this.unit = unit;
-        this.x = screenx;
-        this.y = screeny;
-        this.width = 256;
-        this.height = 72;
-
-        this.font = FontSet.getDefault.serif;
-        GenTextureMipmaps(&font.texture);
-
-        UnitStats stats = unit.getStats;
-        this.infotext ~= "Mv: "~to!string(stats.Mv)~"\n";
-        this.infotext ~= "MHP: "~to!string(stats.MHP)~"\n";
-        this.infotext ~= "Str: "~to!string(stats.Str)~"\n";
-        this.infotext ~= "Def: "~to!string(stats.Def)~"\n";
+    version (customgui) {
+        UIStyle style;
+        TextButton[] buttons;
+        void delegate(ubyte) action;
+        UIElement childElement;
+    } version (raygui) {
+        Rectangle[] buttonRects;
+        string optionString;
     }
-    ~this() {
-        if (available) destroy(this.unit);
+    Vector2 origin;
+
+    version (raygui) this(int x, int y) {
+        origin.x = x;
+        origin.y = y;
     }
 
-    bool available() {
-        if (unit.currentTile is null) return true;
-        else return false;
-    }
-    
-    UnitStats stats() {
-        return this.unit.getStats;
-    }
+    this(ArrayType)(Vector2 origin, ref ArrayType[] array, void delegate(ubyte) action, UIStyle style=null) {
+        this.origin = origin;
+        this.action = action;
 
-    void draw(Texture[] sprites) {
-        DrawRectangleRec(outline, Color(r:250, b:230, g:245, a:200));
-        DrawRectangleLinesEx(outline, 1.0f, Colors.BLACK);
-        DrawTexture(this.unit.sprite, cast(int)outline.x+4, cast(int)outline.y+2, Colors.WHITE);
-        //DrawText(this.unit.name.toStringz, x+80, y+4, 14, Colors.BLACK);
-        DrawTextEx(font, unit.name.toStringz, Vector2(x+80, y+4), 16.0f, 1.0f, Colors.BLACK);
-        //DrawText(this.infotext.toStringz, x+80, y+20, 11, Colors.BLACK);
-        DrawTextEx(font, infotext.toStringz, Vector2(x+80, y+20), 12.0f, 1.0f, Colors.BLACK);
-        SetTextureFilter(font.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
-    }
-}
-
-class MenuList (ArrayType)
-{
-    Rectangle[] rects;
-    string[] optionNames;
-    version (raygui) string optionString;
-    Vector2i origin;
-
-    this(int x, int y) {
-        this.origin.x = x;
-        this.origin.y = y;
-    }
-
-    this(int x, int y, ArrayType[] array) {
-        this.origin.x = x;
-        this.origin.y = y;
-        reset(array);
-    }
-
-    void reset(ArrayType[] array) {
-        import std.stdio;
-        if (array[0] is null) writeln("Array is empty"); return;
-        rects.length = array.length;
-        optionNames.length = array.length;
-        version (raygui) optionString = "";
+        if (style is null) style = UIStyle.getDefault;
+        this.style = style;
+        
         foreach (i, object; array) {
-            version (customgui) optionNames[i] = object.name;
-            version (raygui) optionString ~= ";"~object.name;
-            rects[i] = Rectangle(x:origin.x, y:origin.y+i*24, width:96, height:24);
+            Rectangle buttonOutline = {x:0, y:0, width:96, height:24};
+            version (customgui) buttons ~= new TextButton(buttonOutline, object.name, 16, delegate {action(cast(ubyte)i);}, style, false);
+            version (raygui) {
+                buttonRects ~= buttonOutline;
+                optionString ~= object.name~";";
+            }
         }
+        version (customgui) this.area = Rectangle(x:origin.x, y:origin.y, width:96, height:24*buttons.length);
+        version (raygui) optionString.length--;
     }
 
-    bool draw(ref ubyte selected) {
-        foreach (i, optionRect; rects) {
-            version (customgui) {
-                DrawRectangleRec(optionRect, Colours.Paper);
-                if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition, optionRect)) {
-                    selected = cast(ubyte) i;
-                    return true;
-                }
-            }
-            version (raygui) if (GuiButton(optionRect, optionNames[i].toStringz)) {
-                selected = cast(ubyte) i;
-                return true;
-            }
+    version (customgui) override void draw(Vector2 offset = Vector2(0,0)) {
+        offset += this.origin;
+        foreach(i, button; this.buttons) {
+            button.draw(offset);
         }
-        return false;
+        checkHover();
+        if (childElement !is null) childElement.draw;
     }
 }
+
+/*struct TextBox
+{
+    Rectangle area;
+    string text;
+    float fontSize;
+    Vector2 textAnchor;
+
+    this (Rectangle area, string text, float fontSize, Font font) {
+        this.area = area;
+        this.fontSize = fontSize;
+        Vector2 textDimensions = MeasureTextEx(font, text.toStringz, fontSize, style.lineSpacing);
+        this.textAnchor.x = area.x + (area.width - textDimensions.x) / 2; // + (textDimensions / 2); // After merging of my version of raylib-d, change to `textAnchor = area.origin + (area.dimensions - textDimensions) / 2;`.
+        this.textAnchor.y = area.y + (area.height - textDimensions.y) / 2;
+    }
+
+    void draw(UIStyle style, Font font, Vector2 offset) {
+        DrawRectangleRec(offsetRect(area, offset), style.baseColour);
+        DrawTextEx(font, this.text.toStringz, textAnchor+offset, fontSize, style.lineSpacing, style.textColour);
+        if(CheckCollisionPointRec(GetMousePosition(), area)) DrawRectangleRec(area, Colours.Highlight);
+        DrawRectangleLinesEx(area, style.outlineThickness, style.outlineColour);
+    }
+}*/
 
 enum Colours {
     Shadow = Color(r:0, b:0, g:0, a:150),
     Highlight = Color(245, 245, 245, 32),
+    Bluelight = Color(180, 200, 255, 24),
     Startpoint = Color(250, 250, 60, 35),
     Paper = Color(r:240, b:210, g:234, a:250),
-    Crimson = Color(180, 7, 13, 255),
+    Crimson = Color(160, 7, 16, 255),
 }

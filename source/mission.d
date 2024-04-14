@@ -4,11 +4,13 @@ import std.path : buildNormalizedPath;
 import std.string : toStringz;
 import std.conv;
 import std.json;
-import std.algorithm.searching;
+import std.algorithm;
 import std.datetime.stopwatch;
-version (Fluid) {
+import raylib;
+version (fluid) {
     import fluid;
-} else import raylib;
+    import raylib:Texture,KeyboardKey,MouseButton;
+}
 version (raygui) import raygui;
 
 import oe.common;
@@ -21,22 +23,28 @@ import vunit;
 import vector_math;
 import constants;
 import ui;
-
-const bool updateOnClick = false;
+import ui_specialized;
+import spriteLoader;
 
 class Mission : Map
 {
-    Texture2D[] sprites;
-    Texture2D gridMarker;
-    Texture2D*[string] spriteIndex;
-    Unit selectedUnit;
-    version (customgui) static Font font;
-    Vector2 offset;
-    Rectangle mapView;
-    Vector2i mapSizePx;
+    Faction playerFaction;
+    
+    static Mission instance;
+    static SpriteLoader spriteLoader;
+    version (customgui) UIStyle style;
+    version (fluid) MapFrame fluidGUI;
+    Sprite gridMarker;
+    
+    Camera2D camera;
+    private Vector2 mousePosition;
+    private Vector2i mouseGridPosition;
+    Rectangle mapArea = {x:0, y:0};          // Rectangle representing the map area in world space.
+    Rectangle mapView;                  // Rectangle representing the visible part of the map in screen space.
     StopWatch missionTimer;
-
-    VisibleTile[] startingPoints;
+    VisibleTile[] startingTiles;
+    
+    VisibleUnit selectedUnit;
 
     this() {
         JSONValue missionData = parseJSON(readText("../maps/Test_battlefield.json"));
@@ -49,12 +57,20 @@ class Mission : Map
     }
 
     this(JSONValue mapData) {
-        this.offset = Vector2(0.0f, 0.0f);
         import std.algorithm;
         import std.conv;
         import std.uni: toLower;
 
-        version (customgui) this.font = FontSet.getDefault.serif;
+        this.instance = this;
+
+        version (customgui) this.style = UIStyle.getDefault;
+
+        version (fluid) {
+            auto menuPanel = nodeSlot!Frame();
+            fluidGUI = mapFrame(.layout!("fill","fill"), menuPanel=menuPanel);
+        }
+
+        spriteLoader = SpriteLoader.current;
 
         super(mapData["map_name"].get!string);
         super.loadFactionsFromJSON(mapData);
@@ -63,15 +79,7 @@ class Mission : Map
         writeln("Starting to unload tile data");
         foreach (uint x, tileRow; mapData.object["tiles"].array) {
             foreach (uint y, tileData; tileRow.arrayNoRef) {
-                string spriteName = tileData["tile_sprite"].get!string;
-                string spritePath = ("../sprites/tiles/" ~ spriteName).buildNormalizedPath;
-                VisibleTile tile =  new VisibleTile(tileData, this.spriteIndex, x, y);
-                if (spriteName in this.spriteIndex) tile.sprite = spriteIndex[spriteName];
-                else {
-                    this.sprites ~= LoadTexture(spritePath.toStringz);
-                    tile.sprite = &this.sprites[$-1];
-                    this.spriteIndex[spriteName] = &this.sprites[$-1];
-                }
+                VisibleTile tile =  new VisibleTile(x, y, tileData);
                 this.grid[x] ~= tile;
                 if ("Unit" in tileData) {
                     JSONValue unitData = tileData["Unit"];
@@ -86,36 +94,37 @@ class Mission : Map
                     occupyingUnit.setLocation(x, y);
                 } else if ("Player Unit" in tileData) {
                     this.grid[x][y].startLocation = true;
-                    startingPoints ~= tile;
+                    startingTiles ~= tile;
                 }
             }
         }
         this.gridWidth = cast(ushort)this.grid.length;
         this.gridLength = cast(ushort)this.grid[0].length;
-        this.mapSizePx.x = cast(int)this.grid.length * TILEWIDTH;
-        this.mapSizePx.y = cast(int)this.grid[0].length * TILEHEIGHT;
+        this.mapArea.width = cast(int)this.gridLength * TILEWIDTH;
+        this.mapArea.height = cast(int)this.gridWidth * TILEHEIGHT;
+        writeln(mapArea.height);
+        mapArea = Rectangle(x:0, y:0, width:grid.length*TILEWIDTH, height:grid[0].length*TILEHEIGHT);
         debug writeln("Finished loading map " ~ this.name);
-        {
-            import std.conv;
-            debug writeln("Map is "~to!string(this.grid.length)~" by "~to!string(this.grid.length)~" tiles.");
-        }
-        this.gridMarker = LoadTexture("../sprites/grid-marker.png".toStringz);
+        this.playerFaction = factionsByName["player"];
+        this.gridMarker = spriteLoader.getSprite("grid marker");
         this.fullyLoaded = true;
 
         this.turnReset;
     }
 
     void run() {
-        startPreparation();
+        preparation();
         this.mapView = Rectangle(0, 0, GetScreenWidth, GetScreenHeight);
         writeln("There are ", factions.length, " factions.");
         while(!WindowShouldClose) {
             playerTurn();
-            factions[1].turn();
+            enemyTurn(factions[1]);
         }
     }
 
-    void startPreparation() {   
+    void preparation() {   
+        this.phase = GamePhase.Preparation;
+
         Rectangle menuBox = {x:0, y:GetScreenHeight()-96, width:GetScreenWidth(), height:96};
         Unit[] availableUnits;
         UnitInfoCard[Unit] unitCards;
@@ -123,9 +132,10 @@ class Mission : Map
         JSONValue playerUnitsData = parseJSON(readText("Units.json"));
         debug writeln("Opened Units.json");
         foreach (uint k, unitData; playerUnitsData.array) {
-            VisibleUnit unit = new VisibleUnit(this, unitData, factionsByName["player"]);//loadUnitFromJSON(unitData, spriteIndex, false);
+            VisibleUnit unit = new VisibleUnit(this, unitData, playerFaction);
             availableUnits ~= unit;
-            unitCards[unit] = new UnitInfoCard(unit, k*258, GetScreenHeight()-88);
+            version (raygui) unitCards[unit] = new UnitInfoCard(unit, Vector2(x:k*258.0f, y:GetScreenHeight()-88.0f));
+            else unitCards[unit] = new UnitInfoCard(unit, Vector2(x:k*258.0f, y:GetScreenHeight()-88.0f), delegate(){selectedUnit = unit;});
         }
         debug writeln("There are "~to!string(unitCards.length)~" units available.");
 
@@ -134,10 +144,8 @@ class Mission : Map
             else writeln("mission.allUnits["~to!string(i)~"] is null");
         }
 
-        this.phase = GamePhase.Preparation;
-
-        version (Fluid) {
-            Label startButton = button("Start Mission", delegate {
+        version (fluid) {
+            auto startButton = button(.layout!("end", "start"), "Start Mission", delegate {
                 this.endTurn();
             });
         } else version (raygui) {
@@ -145,114 +153,99 @@ class Mission : Map
         } else version (customgui) {
             TextButton startButton;
             {
-                Rectangle buttonOutline = {x:GetScreenWidth()-160, y:menuBox.y-16, width:160, height:32};
-                startButton = new TextButton(buttonOutline, "Start Mission", 24, Colours.Crimson, true);
+                Rectangle buttonOutline = {x:GetScreenWidth-160, y:menuBox.y-16, width:160, height:32};
+                startButton = new TextButton(buttonOutline, "Start Mission", 18, &endTurn);
             }
         }
+
+        mapView = Rectangle(0, 0, GetScreenWidth, GetScreenHeight-96);
+        camera.zoom = 1.0f;
+        camera.rotation = 0.0f;
+        camera.offset = Vector2(mapView.width/2.0f, mapView.height/2.0f);
+        camera.target.x = mapArea.width/2.0f;
+        camera.target.y = mapArea.height-mapView.height/2.0f;
+        foreach (startTile; startingTiles) camera.target.y = max(startTile.y+TILEHEIGHT*2, mapArea.height) - mapView.height/2.0f;
         
         missionTimer = StopWatch(AutoStart.yes);
         bool startButtonAvailable = false;
-        Vector2 mousePosition = GetMousePosition();
         bool leftClick;
         const Vector2 dragOffset = {x: -TILEWIDTH/2, y: -TILEHEIGHT*0.75 };
-        this.offset = Vector2(0.0, -96.0);
-        this.mapView = Rectangle(0, 0, GetScreenWidth, GetScreenHeight-96);
         ushort unitsDeployed = 0;
 
         while(!WindowShouldClose() && phase==GamePhase.Preparation) {
             unitsDeployed = 0;
             mousePosition = GetMousePosition();
             leftClick = IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT);
+
             BeginDrawing();
-            this.offsetMap(mapView);
-            drawTiles();
-            foreach(startTile; startingPoints) { //This loop handles the starting locations, where the player may place their units.
-                Rectangle startTileRect = startTile.getRect(offset);
+            this.offsetCamera(mapView);
+            BeginMode2D(camera);
+
+            drawGround();
+            foreach(startTile; startingTiles) { //This loop handles the starting locations, where the player may place their units.
+                Rectangle startTileRect = startTile.getRect();
                 DrawRectangleRec(startTileRect, Color(250, 250, 60, 60));
                 DrawRectangleLinesEx(startTileRect, 1.5f, Color(240, 240, 40, 120));
                 if (startTile.occupant !is null) {
                     unitsDeployed++;
-                    Vector2 destination = startTile.getDestination(offset) + Vector2(0, -24);
+                    Vector2 destination = startTile.origin + Vector2(0, -24);
                     Color tint;
                     if (startTile.occupant == this.selectedUnit) tint = Color(250, 250, 250, 190);
                     else tint = Color(255, 255, 255, 255);
                     DrawTextureV((cast(VisibleUnit)startTile.occupant).sprite, destination, tint);
                 }
-                if (CheckCollisionPointRec(mousePosition, startTileRect)) {
+                if (mouseGridPosition == Vector2i(startTile.x, startTile.y)) {
                     DrawRectangleRec(startTileRect, Color(250, 30, 30, 30));
+                    if (leftClick) {
+                        Unit previousOccupant = startTile.occupant;
+                        if (selectedUnit !is null) {
+                            if (selectedUnit.currentTile !is null) selectedUnit.currentTile.occupant = null;
+                            selectedUnit.currentTile = startTile;
+                            debug writeln("Unit "~selectedUnit.name~" is being deployed.");
+                        }
+                        startTile.occupant = selectedUnit;
+                        
+                        if (previousOccupant !is null) previousOccupant.currentTile = null;
+                        selectedUnit = cast(VisibleUnit)previousOccupant;
+                    }
                 }
             }
             drawGridMarkers(missionTimer.peek.total!"msecs");
             drawUnits();
+            EndMode2D();
 
             DrawRectangleRec(menuBox, Colours.Paper);
             foreach (card; unitCards) if (card.unit.currentTile is null) {
-                card.draw(this.sprites);
+                card.draw();
+                if (leftClick && card.available && CheckCollisionPointRec(mousePosition, card.area)) this.selectedUnit = card.unit;
             }
 
-            if (IsKeyDown(KeyboardKey.KEY_SPACE)) {
-                DrawRectangleRec(mapView, Color(250, 20, 20, 50));
-            }
-
-            if (this.selectedUnit is null) {
-                if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
-                    bool searching = true;
-                    foreach (card; unitCards) if (CheckCollisionPointRec(mousePosition, card.outline)) {
-                        searching = false;
-                        if (card.available) {
-                            this.selectedUnit = card.unit;
-                            break;
-                        }
-                    }
-                    if (searching) foreach (startTile; startingPoints) if (CheckCollisionPointRec(mousePosition, startTile.getRect(offset))) {
-                        this.selectedUnit = startTile.occupant;
-                    }
-                }
-            } else {
+            if (this.selectedUnit !is null) {
                 DrawTextureV((cast(VisibleUnit)this.selectedUnit).sprite, mousePosition+dragOffset, Colors.WHITE);
-                if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
-                    bool deployed;
-                    if (CheckCollisionPointRec(mousePosition, menuBox)) deployed = false;
-                    else deployed = (this.selectedUnit.currentTile !is null);
-                    foreach (tile; startingPoints) if (CheckCollisionPointRec(mousePosition, tile.getRect(offset))) {
-                        if (selectedUnit.currentTile == tile) {
-                            tile.occupant = selectedUnit;
-                            selectedUnit = null;
-                        } else {
-                            Unit previousOccupant = tile.occupant;
-                            if (this.selectedUnit.currentTile !is null) this.selectedUnit.currentTile.occupant = null;
-                            tile.occupant = this.selectedUnit;
-                            this.selectedUnit.currentTile = tile;
-                            writeln("Unit "~tile.occupant.name~" is being deployed.");
-                            if (previousOccupant !is null) previousOccupant.currentTile = null;
-                            this.selectedUnit = previousOccupant;
-                        }
-                        deployed = true;
-                        break;
-                    }
-                    if (!deployed) {
-                        if (this.selectedUnit.currentTile !is null) {
-                            this.selectedUnit.currentTile.occupant = null;
-                            this.selectedUnit.currentTile = null;
-                        }
-                        this.selectedUnit = null;
-                    }
-                }
             }
-            if (unitsDeployed > 0 && missionTimer.peek() >= msecs(1000*startingPoints.length/unitsDeployed)) {
+            version (fluid) { if (!startButtonAvailable && unitsDeployed*missionTimer.peek() >= msecs(WAITTIME*startingTiles.length)) {
+                fluidGUI.addChild(startButton, MapPosition(
+                    coords: Vector2(GetScreenWidth, menuBox.y-16),
+                    drop: MapDropVector(MapDropDirection.end, MapDropDirection.automatic)
+                ));
+                startButtonAvailable = true;
+            }} else if (startButtonAvailable || unitsDeployed > 0 && unitsDeployed*missionTimer.peek() >= msecs(WAITTIME*startingTiles.length)) {
                 version (customgui) {
                     startButton.draw();
-                    if (CheckCollisionPointRec(mousePosition, startButton.outline) && IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
+                    if (CheckCollisionPointRec(mousePosition, startButton.area) && IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
                         EndDrawing();
                         break;
                     }
                 } else version (raygui) {
-                    if (GuiButton(startButton, "Start Mission".toStringz)) {
+                    if (GuiButton(startButton, "Start Mission")) {
                         EndDrawing();
                         break;
                     }
                 }
+                startButtonAvailable = true;
             }
+
+            version (fluid) fluidGUI.draw();
             version (drawFPS) DrawFPS(20, 20);
             EndDrawing();
         }
@@ -262,13 +255,15 @@ class Mission : Map
         }
         destroy(menuBox);
         
-        foreach (startTile; this.startingPoints) if (startTile.occupant !is null) {
+        foreach (startTile; this.startingTiles) if (startTile.occupant !is null) {
             writeln("Looking at starting tile "~to!string(startTile.x())~", "~to!string(startTile.y()));
-            this.allUnits ~= cast(VisibleUnit) startTile.occupant;
-            this.factionsByName["player"].units ~= startTile.occupant;
+            this.allUnits ~= startTile.occupant;
+            this.playerFaction.units ~= startTile.occupant;
             startTile.occupant.setLocation(startTile.x(), startTile.y());
         }
-        this.startingPoints.length = 0;
+        this.startingTiles.length = 0;
+
+        version (fluid) fluidGUI.children.length = 0;
 
         debug verifyEverything;
 
@@ -278,34 +273,105 @@ class Mission : Map
     void playerTurn() {
         import oe.item;
 
-        this.factionsByName["player"].turnReset();
+        this.playerFaction.turnReset();
         
         Vector2 mousePosition = GetMousePosition();
-        bool onButton = false;
+        bool onGrid = true;
         bool leftClick = false;
+        VisibleTile cursorTile;
+        Action playerAction = Action.Nothing;
+
+        MenuList itemsList;
+
+        UnitInfoPanel unitInfoPanel = new UnitInfoPanel(Vector2(0,GetScreenHeight));
 
         version (customgui) {
-            TextButton moveButton;
-            TextButton attackButton;
-            TextButton itemsButton;
-            TextButton waitButton;
-            TextButton backButton;
-            TextButton finishButton;
+            UIElement.onHover = delegate {onGrid = false;};
+            
+            Panel unitMenuPanel;
             {
-                Rectangle buttonOutline = {x:GetScreenWidth-96, y:GetScreenHeight-32, 80, 32};
-                backButton = new TextButton(buttonOutline, "Back", 20, Colours.Crimson, true);
-                buttonOutline.y -= 48;
-                waitButton = new TextButton(buttonOutline, "Wait", 20, Colours.Crimson, true);
-                buttonOutline.y -= 48;
-                itemsButton = new TextButton(buttonOutline, "Items", 20, Colours.Crimson, true);
-                buttonOutline.y -= 48;
-                attackButton = new TextButton(buttonOutline, "Attack", 20, Colours.Crimson, true);
-                buttonOutline.y -= 48;
-                moveButton = new TextButton(buttonOutline, "Move", 20, Colours.Crimson, true);
-                buttonOutline = Rectangle(x:GetScreenWidth-128, y:GetScreenHeight-32, 128, 32);
-                finishButton = new TextButton(buttonOutline, "Finish turn", 20, Colours.Crimson, true);
+                Rectangle buttonOutline = {x:0, y:0, 80, 32};
+                TextButton moveButton = new TextButton(buttonOutline, "Move", 20, delegate {playerAction = Action.Move;});
+                
+                buttonOutline.y += 32;
+                TextButton attackButton = new TextButton(buttonOutline, "Attack", 20, delegate {playerAction = Action.Attack;});
+                
+                buttonOutline.y += 32;
+                TextButton itemsButton = new TextButton(buttonOutline, "Items", 20, delegate {
+                    playerAction = Action.Items;
+                    MenuList optionsList;
+                    itemsList = new MenuList(Vector2(GetScreenWidth-182, GetScreenHeight-256), selectedUnit.inventory, delegate(ubyte i) {
+                        ItemOption[] options = selectedUnit.inventory[i].getOptions(selectedUnit);
+                        optionsList = new MenuList(Vector2(x:GetScreenWidth-296, y:GetScreenHeight-256),
+                            options,
+                            delegate(ubyte o) {
+                                options[o].action(selectedUnit); 
+                                playerAction = Action.Nothing;
+                                itemsList.childElement = null;
+                            }
+                        );
+                        itemsList.childElement = optionsList;
+                    });
+                });
+                
+                buttonOutline.y += 32;
+                TextButton waitButton = new TextButton(buttonOutline, "Wait", 20, delegate {
+                    selectedUnit.hasActed = true;
+                    selectedUnit.finishedTurn = true;
+                    playerAction = Action.Nothing;
+                    selectedUnit = null;
+                });
+                
+                buttonOutline.y += 32;
+                TextButton backButton = new TextButton(buttonOutline, "Back", 20, delegate {
+                    if (playerAction != Action.Nothing) {
+                        playerAction = Action.Nothing;
+                        if (playerAction == Action.Items) {
+                            destroy(itemsList);
+                            itemsList = null;
+                        }
+                    } else selectedUnit = null;
+                });
+                unitMenuPanel = new Panel(Vector2(GetScreenWidth-80, GetScreenHeight-160));
+                unitMenuPanel.children = [moveButton, attackButton, itemsButton, waitButton, backButton];
             }
-            assert(moveButton.buttonColour == Colours.Crimson, "Move button does not appear to be initialized.");
+            TextButton finishButton = new TextButton(Rectangle(x:GetScreenWidth-128, y:GetScreenHeight-32, 128, 32), "Finish turn", 20, delegate {playerAction = Action.EndTurn;});
+            TextButton backButton = new TextButton(Rectangle(x:GetScreenWidth-80, y:GetScreenHeight-32, 80, 32), "Back", 20, delegate {playerAction = Action.Nothing;});
+            
+            AttackInfoPanel attackInfoPanel;
+        } else version (fluid) {
+            Frame unitMenuPanel;
+            auto menuPanel = nodeSlot!Node();
+            {
+                auto innerBackButton = button(.layout!"fill", "Back", delegate {playerAction = Action.Nothing; menuPanel = unitMenuPanel;});
+                auto moveButton = button(.layout!("fill"), "Move", delegate {playerAction = Action.Move; menuPanel = innerBackButton;});
+                auto attackButton = button(.layout!("fill"), "Attack", delegate {playerAction = Action.Attack; menuPanel = innerBackButton;});
+                auto itemsButton = button(.layout!("fill"), "Items", delegate {
+                    playerAction = Action.Items;
+                    auto itemsMenu = vframe();
+                    foreach (item; selectedUnit.inventory) {
+                        itemsMenu.children ~= button(.layout!"fill", item.name, delegate {
+                            PopupFrame itemActionsMenu = popupFrame();
+                            foreach(option; item.getOptions(selectedUnit)) {
+                                itemActionsMenu.children ~= button(option.name, delegate {
+                                    option.action(selectedUnit);
+                                    menuPanel = unitMenuPanel;
+                                    itemActionsMenu.toRemove = true;
+                                });
+                            }
+                            spawnPopup(itemsMenu.tree, itemActionsMenu);
+                        }); // TODO: Fix this when item actions are implemented.
+                    }
+                    itemsMenu.children ~= innerBackButton;
+                    menuPanel = itemsMenu;
+                });
+                auto outerBackButton = button(.layout!"fill", "Back", delegate {selectedUnit = null; menuPanel.clear;});
+                unitMenuPanel = vframe(.layout!("end", "end"), moveButton, attackButton, itemsButton, outerBackButton);
+            }
+            auto finishButton = button("End Turn", delegate {playerAction = Action.EndTurn;});
+            fluidGUI.addChild(menuPanel, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight-24), drop:MapDropVector(MapDropDirection.end, MapDropDirection.end)));
+            fluidGUI.addChild(finishButton, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight), drop:MapDropVector(MapDropDirection.end, MapDropDirection.automatic)));
+            fluidGUI.updateSize;
         } else version (raygui) {
             Rectangle moveButton = {x:GetScreenWidth-96, y:GetScreenHeight-(32*5), 96, 32};
             Rectangle attackButton = {x:GetScreenWidth-96, y:GetScreenHeight-(32*4), 96, 32};
@@ -315,135 +381,179 @@ class Mission : Map
             Rectangle finishButton = {x:GetScreenWidth-128, y:GetScreenHeight-32, 128, 32};
         }
 
-        MenuList!Item itemsList;
-        
-        enum Action:ubyte {Nothing, Move, Attack, Items, EndTurn};
-        Action playerAction = Action.Nothing;
-
         VisibleUnit movingUnit = null;
         debug Texture arrow = LoadTexture("../sprites/arrow.png");
 
-        while(!WindowShouldClose() && playerAction != Action.EndTurn)
-        {
-            debug if (playerAction != Action.Nothing && selectedUnit is null) throw new Exception ("`playerAction is not set to `Nothing`, but `selectedUnit` is null.");
-            mousePosition = GetMousePosition();
-            leftClick = IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT);
-            this.offsetMap(mapView);
-            foreach (unit; cast(VisibleUnit[]) allUnits) {
-                unit.stepTowards();
-            }
-            BeginDrawing();
+        debug verifyEverything();
+        debug uint frameNumber;
 
-            drawTiles();
-            foreach (uint gridx, row; cast(VisibleTile[][]) grid) {
-                foreach (uint gridy, tile; row) {
-                    if (playerAction == Action.Move && selectedUnit.getTileAccess(gridx,gridy).reachable) {
-                        DrawRectangleRec(tile.getRect(offset), Color(60, 240, 120, 30));
-                        debug DrawTextureEx(arrow, Vector2(cast(float)(gridx*TILEWIDTH+32), cast(float)(gridy*TILEWIDTH+32)), cast(float)selectedUnit.getTileAccess(gridx,gridy).directionTo.getAngle, 1.0f, Color(120, 240, 120, 60));
-                        if(leftClick && CheckCollisionPointRec(mousePosition, tile.getRect(offset))) {
-                            selectedUnit.move(gridx, gridy);
-                            movingUnit = cast(VisibleUnit)selectedUnit;
-                            playerAction = Action.Nothing;
-                        }
-                    } else if (playerAction == Action.Attack && selectedUnit.getTileAccess(gridx,gridy).attackableNow) {
-                        if (tile.occupant !is null) {
-                            DrawRectangleRec(tile.getRect(offset), Color(240, 60, 60, 60));
-                        } else DrawRectangleRec(tile.getRect(offset), Color(200, 60, 60, 30));
-                        if(leftClick && CheckCollisionPointRec(mousePosition, tile.getRect(offset))) {
-                            selectedUnit.attack(gridx, gridy);
-                            movingUnit = cast(VisibleUnit)selectedUnit;
+        while(!WindowShouldClose())
+        {
+            mousePosition = GetMousePosition();
+            mouseGridPosition.x = cast(int)GetScreenToWorld2D(GetMousePosition, camera).x / TILEWIDTH;
+            mouseGridPosition.y = cast(int)GetScreenToWorld2D(GetMousePosition, camera).y / TILEHEIGHT;
+            cursorTile = cast(VisibleTile)getTile(mouseGridPosition, true);
+            leftClick = IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT);
+
+            offsetCamera(mapView);
+            assert (playerFaction !is null, "playerFaction is null");
+            assert (playerFaction.units.length > 0);
+            foreach (unit; playerFaction.units) {
+                assert (unit !is null);
+                (cast(VisibleUnit)unit).act;//stepTowards(unit.currentTile);
+            }
+
+            BeginDrawing();
+            ClearBackground(Color(20, 60, 90, 255));
+            BeginMode2D(camera);
+            drawGround();
+
+            if (selectedUnit !is null) switch(playerAction) {
+                if (!selectedUnit.acting) DrawRectangleRec((cast(VisibleTile)selectedUnit.currentTile).rect, Colours.Highlight);
+                
+                case Action.Move:
+                    foreach (tile; selectedUnit.getReachable!Tile) {
+                        DrawRectangleRec((cast(VisibleTile)tile).rect, Color(60, 240, 120, 30));
+                        //debug DrawTextureEx(arrow, Vector2(cast(float)(tile.x*TILEWIDTH+32), cast(float)(tile.y*TILEWIDTH+32)), tileAccess.directionTo.getAngle, 1.0f, Color(120, 240, 120, 60));
+                        if (leftClick && tile.location == mouseGridPosition) {
+                            selectedUnit.move(cursorTile.x, cursorTile.y);
                             playerAction = Action.Nothing;
                         }
                     }
-                    if (CheckCollisionPointRec(mousePosition, tile.getRect(offset))) {
-                        if (tile.occupant !is null) { // This should later be filtered for only enemy factions.
-                            if (leftClick && playerAction == Action.Nothing && tile.occupant.faction == factionsByName["player"]) {
-                                this.selectedUnit = tile.occupant;
-                                this.selectedUnit.updateReach;
-                                debug writeln(selectedUnit.name~" is of faction "~selectedUnit.faction.name);
-                                if (updateOnClick) this.selectedUnit.updateReach();
-                            }
-                            if (this.selectedUnit !is null) {
-                                if (this.selectedUnit.getTileAccess(gridx, gridy).reachable) {
-                                    DrawRectangleRec(tile.getRect(offset), Color(100, 100, 245, 32));
-                                }
-                            }
+                    break;
+                case Action.Attack:
+                    debug assert (selectedUnit.getAttackable!Tile.length > 0, "Attackable tiles not cached for unit "~selectedUnit.name);
+                    foreach (tile; selectedUnit.getAttackable!Tile) {
+                        if (tile.occupant is null) DrawRectangleRec((cast(VisibleTile)tile).rect, Color(200,60,60,30));
+                        else if (canFind(playerFaction.enemies, tile.occupant.faction)) DrawRectangleRec((cast(VisibleTile)tile).rect, Color(240,60,60,40));
+                        if (leftClick && tile.location == mouseGridPosition) {
+                            selectedUnit.attack(cursorTile.x, cursorTile.y);
+                            playerAction = Action.Nothing;
                         }
-                        if (!onButton) DrawRectangleRec(tile.getRect(offset), Colours.Highlight);
+                    }
+                    break;
+                default: break;
+            }
+            if (onGrid && cursorTile !is null) {
+                if (leftClick && cursorTile.occupant !is null && playerAction == Action.Nothing && cursorTile.occupant.faction == playerFaction) {
+                    selectedUnit = cast(VisibleUnit)cursorTile.occupant;
+                    selectedUnit.updateReach();
+                    version (fluid) menuPanel = unitMenuPanel;
+                }
+
+                if (unitInfoPanel.unit != cursorTile.occupant) {
+                    unitInfoPanel.resetToUnit(cursorTile.occupant);
+                    version (customgui) if (playerAction==Action.Attack) {
+                        if (cursorTile.occupant !is null && canFind(playerFaction.enemies, cursorTile.occupant.faction)) attackInfoPanel = new AttackInfoPanel(selectedUnit, cursorTile.occupant, true, Vector2(0,0));
+                        else {
+                            destroy(attackInfoPanel);
+                            attackInfoPanel = null;
+                        }
                     }
                 }
+
+                DrawRectangleRec(cursorTile.rect, Colours.Highlight); // Highlights the tile where the cursor is.
             }
-            if (selectedUnit !is null) DrawRectangleRec((cast(VisibleTile)selectedUnit.currentTile).rect, Colours.Highlight);
+
             drawGridMarkers(missionTimer.peek.total!"msecs");
             drawUnits();
+            EndMode2D();
+            
+            onGrid = (cursorTile !is null);
+            
             if (selectedUnit !is null) {
                 if (playerAction == Action.Nothing) {
                     version (customgui) {
-                        if (selectedUnit.canMove && moveButton.button(onButton)) {
-                            playerAction = Action.Move;
-                        } else if (!selectedUnit.hasActed && attackButton.button(onButton)) {
-                            playerAction = Action.Attack;
-                        } else if (itemsButton.button(onButton)) {
-                            playerAction = Action.Items;
-                            itemsList = new MenuList!Item(GetScreenWidth-128, GetScreenHeight()/2, selectedUnit.inventory);
-                        } else if (waitButton.button(onButton)) {
-                            selectedUnit.hasActed = true;
-                            selectedUnit.finishedTurn = true;
-                            playerAction = Action.Nothing;
-                            selectedUnit = null;
-                        } else if (backButton.button(onButton)) selectedUnit = null;
+                        version (floatingMenu) {
+                            unitMenuPanel.origin.x = clamp(cast(float)TILEWIDTH*(selectedUnit.xlocation+(selectedUnit.MvRemaining/2)+2), GetScreenWidth/3, GetScreenWidth-80.0f);
+                            unitMenuPanel.origin.y = clamp(cast(float)TILEHEIGHT*(selectedUnit.ylocation-0.5), GetScreenWidth/4, GetScreenWidth-160.0f);
+                        }
+                        unitMenuPanel.draw();
                     } version (raygui) {
-                        if (selectedUnit.MvRemaining > 1) if (GuiButton(moveButton, "#150#Move".toStringz)) playerAction = Action.Move;
-                        if (!selectedUnit.hasActed) if (GuiButton(attackButton, "#155#Attack".toStringz)) playerAction = Action.Attack;
-                        if (GuiButton(itemsButton, "Items".toStringz)) playerAction = Action.Items;
-                        if (GuiButton(waitButton, "#149#Wait ".toStringz)) {
+                        if (selectedUnit.MvRemaining > 1) if (GuiButton(moveButton, "#150#Move")) playerAction = Action.Move;
+                        if (!selectedUnit.hasActed) if (GuiButton(attackButton, "#155#Attack")) playerAction = Action.Attack;
+                        if (GuiButton(itemsButton, "Items")) playerAction = Action.Items;
+                        if (GuiButton(waitButton, "#149#Wait ")) {
                             selectedUnit.hasActed = true;
                             selectedUnit.finishedTurn = true;
                             playerAction = Action.Nothing;
                             selectedUnit = null;
                         }
-                        if (GuiButton(backButton, "Back".toStringz)) selectedUnit = null;
+                        if (GuiButton(backButton, "Back")) selectedUnit = null;
                     }
                 } else {
                     version (customgui) {
-                        if (backButton.button(onButton)) playerAction = Action.Nothing;
+                        if (playerAction == Action.Items) itemsList.draw;
+                        backButton.draw;
+                        if (playerAction == Action.Attack && attackInfoPanel !is null) attackInfoPanel.draw;
                     } version (raygui) {
-                        if (GuiButton(backButton, "Back".toStringz)) playerAction = Action.Nothing;
-                    }
-                    ubyte selectedItem;
-                    if (playerAction == Action.Items && itemsList !is null && itemsList.draw(selectedItem)) { //The `itemsList !is null` check can be removed if it won't result in a segfault.
-                        // Do something with item.
-                        playerAction = Action.Nothing;
-                        destroy(itemsList);
+                        if (GuiButton(backButton, "Back")) playerAction = Action.Nothing;
                     }
                 }
             } else {
-                ushort remaining = cast(short)(factionsByName["player"].units.length * 2);
-                foreach (unit; factionsByName["player"].units) {
-                    remaining -= unit.hasActed;
-                    remaining -= unit.finishedTurn;
+                short remaining = 0;
+                foreach (unit; playerFaction.units) {
+                    if (unit.hasActed) remaining++;
+                    if (unit.MvRemaining < unit.Mv) remaining++;
                 }
-                if (remaining < 3) {
+                if (remaining >= playerFaction.units.length && playerAction != Action.EndTurn) {
                     version (customgui) {
                         finishButton.draw;
-                        if (finishButton.button(onButton)) playerAction = Action.EndTurn;
                     } version (raygui) {
-                        if (GuiButton(finishButton, "Finish turn".toStringz)) playerAction = Action.EndTurn;
+                        if (GuiButton(finishButton, "Finish turn")) playerAction = Action.EndTurn;
                     }
                 }
             }
+
+            if (onGrid && cursorTile.occupant !is null) {
+                unitInfoPanel.draw;
+            }
+
+            version (fluid) fluidGUI.draw;
+
             version (drawFPS) DrawFPS(20, 20);
             EndDrawing();
+            if (playerAction == Action.EndTurn) {
+                bool allFinished = true;
+                foreach (unit; cast(VisibleUnit[]) playerFaction.units) {
+                    if (unit.acting) allFinished = false;
+                }
+                if (allFinished) break;
+            }
+
+            debug frameNumber++;
         }
 
         selectedUnit = null;
         endTurn();
     }
 
-    void drawTiles() {
+    void enemyTurn(Faction faction) {
+        faction.turn;
+
+        while (!WindowShouldClose) {
+            BeginDrawing();
+            ClearBackground(Color(20, 60, 90, 255));
+            BeginMode2D(camera);
+            drawGround();
+            drawUnits();
+            EndMode2D();
+            EndDrawing();
+
+            bool allFinished = true;
+            foreach (unit; cast(VisibleUnit[]) faction.units) {
+                (cast(VisibleUnit)unit).act;
+                if (unit.acting) allFinished = false;
+                else debug writeln(unit.name~" has no actions left.");
+            }
+            if (allFinished) break;
+        }
+    }
+
+    void drawGround() {
         foreach (uint x, row; cast(VisibleTile[][]) grid) {
             foreach (uint y, tile; row) {
-                DrawTextureV(*tile.sprite, tile.getDestination(offset), Colors.WHITE);
+                DrawTextureV(tile.sprites[0], tile.origin, Colors.WHITE);
             }
         }
     }
@@ -453,72 +563,65 @@ class Mission : Map
         import std.math;
         
         float sinwave = 80*(sin(cast(float)time/300.0f)+1.0);
-        int opacity = sinwave.to!int + 20;
+        ubyte opacity = sinwave.to!ubyte;
         foreach (uint x, row; cast(VisibleTile[][]) grid) {
             foreach (uint y, tile; row) {
-                DrawTextureV(this.gridMarker, tile.getDestination(offset), Color(10,10,10, cast(ubyte)sinwave));
+                DrawTextureV(this.gridMarker, tile.origin, Color(10,10,10, opacity));
             }
+        }
+        
+        opacity = cast(ubyte) (sinwave/4);
+        foreach (unit; cast(VisibleUnit[]) playerFaction.units) {
+            if (unit !is selectedUnit || unit.acting) DrawEllipse(cast(int)unit.position.x+TILEWIDTH/2, cast(int)unit.position.y+TILEHEIGHT/2, cast(float)(TILEWIDTH*0.4375), cast(float)(TILEHEIGHT*0.4375), Color(220,250,250,opacity));
+            else DrawRectangleRec((cast(VisibleTile)unit.currentTile).rect, Colours.Bluelight);
         }
     }
 
     void drawUnits() {
         Color shade;
-        foreach (unit; cast(VisibleUnit[]) allUnits) {
-            Vector2 destination = unit.position;
-            destination += offset + Vector2(0, -24);
-            if (this.phase==GamePhase.PlayerTurn && unit.hasActed) shade = Color(236,236,236,250);
-            else shade = Colors.WHITE;
-            DrawTextureV(unit.sprite, destination, shade);
+        foreach (VisibleUnit unit; cast(VisibleUnit[]) allUnits) {
+            unit.draw;
         }
     }
 
-    void drawOnMap(Texture2D sprite, Rectangle rect) {
-        Vector2 destination = rectDest(rect, this.offset);
-        DrawTextureRec(sprite, rect, destination, Colors.WHITE);
-    }
-    void drawOnMap(Rectangle rect, Color colour) {
-        rect.x += this.offset.x;
-        rect.y += this.offset.y;
-        DrawRectangleRec(rect, colour);
-    }
-
-    void offsetMap(Rectangle mapView) { 
-        Vector2 offsetOffset;
-        Vector2 SECornerSS = (cast(VisibleTile) grid[$-1][$-1]).getDestination(this.offset);
+    void offsetCamera(Rectangle mapView) { 
+        mousePosition = GetMousePosition();
+        {
+            Vector2 mouseWorldPosition = GetScreenToWorld2D(mousePosition, camera);
+            mouseGridPosition.x = cast(int)mouseWorldPosition.x / TILEWIDTH;
+            mouseGridPosition.y = cast(int)mouseWorldPosition.y / TILEHEIGHT;
+        }
+        
+        Vector2 targetOffset;
+        
         if (IsMouseButtonDown(MouseButton.MOUSE_BUTTON_RIGHT)) {
-            offsetOffset = GetMouseDelta();
+            targetOffset = GetMouseDelta();
         } else {
             float framelength = GetFrameTime();
             if (IsKeyDown(KeyboardKey.KEY_A)) {
-                offsetOffset.x = -framelength * 32.0;
+                targetOffset.x = -framelength * 24.0;
             }
             if (IsKeyDown(KeyboardKey.KEY_D)) {
-                offsetOffset.x = framelength * 32.0;
+                targetOffset.x = framelength * 24.0;
             }
             if (IsKeyDown(KeyboardKey.KEY_W)) {
-                offsetOffset.y = -framelength * 32.0;
+                targetOffset.y = -framelength * 24.0;
             }
             if (IsKeyDown(KeyboardKey.KEY_S)) {
-                offsetOffset.y = framelength * 32.0;
+                targetOffset.y = framelength * 24.0;
             }
         }
-        this.offset += offsetOffset;
-        if (offset.x > mapView.x) offset.x = 0.0f;
-        else if (offset.x + mapSizePx.x < mapView.width) offset.x = mapView.width - mapSizePx.x;
-        if (offset.y > mapView.y) offset.y = 0.0f;
-        else if (offset.y + mapSizePx.y < mapView.height) offset.y = mapView.height - mapSizePx.y;
-    }
-}
+        camera.target -= targetOffset;
 
+        Vector2 margins = {0, 0}; // This step can later be reworked to happen less frequently.
+        if (mapArea.width < mapView.width) margins.x = (mapView.width-mapArea.width)/2;
+        if (mapArea.height < mapView.height) margins.y = (mapView.height-mapArea.height)/2;
 
-unittest
-{
-    debug writeln("Starting Mission unittest");
-    validateRaylibBinding();
-    InitWindow(400, 400, "Mission unittest");
-    Mission mission = new Mission("../maps/test-map.json");
-    foreach (unit; mission.allUnits) {
-        assert(unit.map == mission, "Unit does not have it's `map` set to current Mission.");
+        Vector2 topLeftPosition = GetScreenToWorld2D(Vector2(mapView.x, mapView.y), camera);
+        Vector2 bottomRightPosition = GetScreenToWorld2D(Vector2(mapView.x+mapView.width, mapView.y+mapView.height), camera);
+        if (topLeftPosition.x < (mapArea.x - margins.x)) camera.target.x -= topLeftPosition.x - margins.x;
+        else if (bottomRightPosition.x > mapArea.width + margins.x) camera.target.x -= bottomRightPosition.x + margins.x - mapArea.width;
+        if (topLeftPosition.y < (mapArea.y - margins.y)) camera.target.y -= topLeftPosition.y + margins.y;
+        else if (bottomRightPosition.y > (mapArea.y + mapArea.height)) camera.target.y -= bottomRightPosition.y - (mapArea.y + mapArea.height + margins.y);
     }
-    writeln("Mission unittest passed");
 }
