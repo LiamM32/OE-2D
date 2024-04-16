@@ -7,6 +7,7 @@ version (raygui) import raygui;
 import ui;
 
 import mission;
+import renderer;
 
 const int screenWidth = 768;
 const int screenHeight = 720;
@@ -21,6 +22,8 @@ void main()
     //scope(exit) CloseWindow();
 
     Mission mission = new Mission("../maps/test-map.json");
+    Renderer.instance = new Renderer(mission);
+    Renderer.instance.render();
     mission.run();
     CloseWindow();
     return;

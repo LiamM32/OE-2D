@@ -62,6 +62,14 @@ class VisibleUnit : Unit
         spriteTimer = StopWatch(AutoStart.yes);
     }
 
+    Vector2 feetPosition() {
+        return position + Vector2(TILEWIDTH/2, sprite.height-TILEHEIGHT/2);
+    }
+
+    Vector2i feetLocation() {
+        return Vector2i(x:cast(int)(feetPosition.x/TILEWIDTH), y:cast(int)(feetPosition.x/TILEHEIGHT));
+    }
+
     void draw() {
         if (queue.length > 0) act;
         

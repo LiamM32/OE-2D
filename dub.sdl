@@ -16,18 +16,19 @@ libs "raylib"
 dependency "x11" version="*" platform="linux"
 libs "X11" "Xrandr" platform="linux"
 
-excludedSourceFiles "source/renderer.d" //Will soon be added to project.
-
 versions "raylib"
+
+configuration "new-renderer" {
+    versions "renderer" "syncFPS" "fluid"
+    dependency "fluid" version=">=0.6.3"
+}
 
 configuration "customgui" {
     versions "customgui" "syncFPS"
-    dependency "raylib-d" version="*" config="moreCaching"
 }
 
 configuration "raygui" {
     versions "raygui" "syncFPS"
-    dependency "raylib-d" version="*"
 }
 
 configuration "Fluid" {
