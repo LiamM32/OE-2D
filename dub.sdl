@@ -18,25 +18,20 @@ libs "X11" "Xrandr" platform="linux"
 
 versions "raylib"
 
-configuration "new-renderer" {
-    versions "renderer" "syncFPS" "fluid"
-    dependency "fluid" version=">=0.6.3"
-}
-
 configuration "customgui" {
-    versions "customgui" "syncFPS"
+    versions "syncFPS" "renderer" "customgui"
 }
 
 configuration "raygui" {
-    versions "raygui" "syncFPS"
+    versions "syncFPS" "raygui"
 }
 
 configuration "Fluid" {
-    versions "fluid" "syncFPS"
-    dependency "fluid" version=">=0.6.3"
+    versions "syncFPS" "renderer" "fluid"
+    dependency "fluid" version=">=0.7.0-alpha.1"
 }
 
 configuration "framerate-test" {
-    versions "customgui" "drawFPS"
+    versions "renderer" "customgui" "drawFPS"
     dependency "raylib-d" version="*"
 }

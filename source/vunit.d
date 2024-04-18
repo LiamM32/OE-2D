@@ -5,7 +5,7 @@ import std.json;
 import raylib;
 import constants;
 public import oe.unit;
-import spriteSet;
+import sprite;
 import mission;
 import oe.tile;
 import oe.common;
@@ -17,7 +17,7 @@ import oe.item;
 class VisibleUnit : Unit
 {
     //UnitSpriteSet spriteSet;
-    Texture2D sprite;
+    Sprite sprite;
     Vector2 position;
     ActionStep[] queue;
     Message message;
@@ -45,7 +45,7 @@ class VisibleUnit : Unit
         }
     }
     
-    this(Mission map, JSONValue unitData, Faction faction = null) {
+    this(Map map, JSONValue unitData, Faction faction = null) {
         import std.string:toStringz;
         import std.path : buildNormalizedPath;
         import std.algorithm.searching;
@@ -55,7 +55,7 @@ class VisibleUnit : Unit
         string spritePath = ("../sprites/units/" ~ unitData["Sprite"].get!string); //.buildNormalizedPath;
         if (!spritePath.endsWith(".png")) spritePath ~= ".png";
         writeln("Sprite for unit "~this.name~" is "~spritePath);
-        this.sprite = LoadTexture(spritePath.toStringz);
+        this.sprite = new Sprite(spritePath);
 
         if (this.faction is null) this.faction = faction;
 

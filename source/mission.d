@@ -14,7 +14,7 @@ version (fluid) {
 version (raygui) import raygui;
 
 import oe.common;
-import oe.map;
+public import oe.map;
 import oe.faction;
 import oe.tile;
 import vtile;
@@ -24,7 +24,7 @@ import vector_math;
 import constants;
 import ui;
 import ui_specialized;
-import spriteLoader;
+import sprite;
 
 class Mission : Map
 {

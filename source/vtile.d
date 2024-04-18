@@ -3,7 +3,7 @@ import raylib;
 public import oe.tile;
 import oe.common;
 import constants;
-import spriteLoader;
+import sprite;
 
 class VisibleTile : Tile//T!VisibleTile
 {

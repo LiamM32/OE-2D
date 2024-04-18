@@ -22,7 +22,7 @@ void main()
     //scope(exit) CloseWindow();
 
     Mission mission = new Mission("../maps/test-map.json");
-    Renderer.instance = new Renderer(mission);
+    Renderer.instance = new Renderer(mission, mission.factionsByName["player"]);
     Renderer.instance.render();
     mission.run();
     CloseWindow();

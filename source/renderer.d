@@ -11,10 +11,11 @@ import oe.faction;
 import vunit;
 import vtile;
 import constants;
-import spriteLoader;
+import sprite;
 
 version (fluid) {
     import fluid;
+    import ui_fluid;
 }
 version (customgui) {
     import ui;
@@ -41,19 +42,25 @@ class Renderer
     VisibleUnit[][] unitsByRow; // Note: The outer array is by vertical screen-space tile location, while the inner row is unsorted.
     VisibleUnit[] unitsToMove; // A cache for units that have just moved tiles.
 
-    this(Map map) {
+    this(Map map, Faction playerFaction) {
         this.map = map;
+        this.playerFaction = playerFaction;
 
         camera = Camera2D(zoom:1.0f, rotation:0.0f);
         camera.offset = Vector2(GetScreenWidth/2, GetScreenHeight/2);
         camera.target = Vector2(map.getWidth*TILEWIDTH/2, map.getLength*TILEWIDTH/2);
 
-        version (fluid) uiRoot = mapFrame(.layout!("fill","fill"));
+        version (fluid) {
+            auto theme = paperTheme;
+            uiRoot = mapFrame(theme, .layout!("fill","fill"));
+        }
 
         unitsByRow.length = map.getLength;
         foreach (unit; cast(VisibleUnit[])map.allUnits) {
             unitsByRow[cast(uint)(unit.feetPosition.y/TILEHEIGHT)] ~= unit;
         }
+
+        setupPreparation;
     }
 
     void render() {
@@ -68,8 +75,31 @@ class Renderer
                 }
                 foreach(unit; unitsByRow[y]) unit.draw;
             }
+
+            version(fluid) uiRoot.draw;
+
             version(raylib) EndDrawing();
         }
+    }
+
+    version(fluid) void setupPreparation() {
+        import std.file, std.json;
+        
+        Frame unitSelection = grid(paperTheme, .layout!("center","start"));
+        unitSelection.dropSize = Vector2(512, 96);
+
+        foreach (unitData; parseJSON(readText("Units.json")).array) {
+            VisibleUnit unit = new VisibleUnit(map, unitData, playerFaction);
+            auto unitCard = new UnitInfoCard(unit);
+            unitSelection ~= unitCard;
+        }
+
+        uiRoot.addChild(unitSelection, MapPosition(
+            coords: Vector2(GetScreenWidth/2, GetScreenHeight-96),
+            drop: MapDropVector(MapDropDirection.automatic, MapDropDirection.automatic)
+        ));
+
+        uiRoot.updateSize();
     }
 
     Vector2i getGridCoordinates(Vector2 inputPosition, const bool fromScreen) {

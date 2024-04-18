@@ -4,6 +4,8 @@ import std.string:toStringz;
 import raylib;
 import oe.common: Direction;
 
+public import spriteSet;
+
 class SpriteLoader
 {
     static SpriteLoader instance;
