@@ -1,3 +1,6 @@
 oe-raylib
 oe-2d
+open_emblem_2d-test*
 dub.selections.json
+callgrind/
+trace.*

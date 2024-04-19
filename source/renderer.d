@@ -32,6 +32,7 @@ class Renderer
     alias this = map;
 
     version (fluid) MapFrame uiRoot;
+    version (customgui) UIElement[] gui;
     
     Camera2D camera;
     bool cursorOnMap;
