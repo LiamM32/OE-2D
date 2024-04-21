@@ -10,7 +10,7 @@ dflags "-J=dub.selections.json"
 stringImportPaths "."
 
 dependency "open_emblem" version="*" path="../"
-dependency "raylib-d" version="*"
+dependency "raylib-d" version=">=5.0.1"
 libs "raylib"
 
 dependency "x11" version="*" platform="linux"
@@ -18,17 +18,13 @@ libs "X11" "Xrandr" platform="linux"
 
 versions "raylib"
 
-configuration "customgui" {
-    versions "syncFPS" "renderer" "customgui"
-}
-
-configuration "raygui" {
-    versions "syncFPS" "raygui"
-}
-
 configuration "Fluid" {
     versions "syncFPS" "renderer" "fluid"
     dependency "fluid" version=">=0.7.0-alpha.1"
+}
+
+configuration "customgui" {
+    versions "syncFPS" "renderer" "customgui"
 }
 
 configuration "framerate-test" {

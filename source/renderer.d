@@ -3,6 +3,7 @@ debug {
     import std.conv;
 }
 import std.algorithm;
+import std.datetime.stopwatch;
 
 version (raylib) import raylib;
 import oe.common;
@@ -39,6 +40,7 @@ class Renderer
     Tile cursorTile;
 
     Unit selectedUnit;
+    StopWatch missionTimer;
 
     VisibleUnit[][] unitsByRow; // Note: The outer array is by vertical screen-space tile location, while the inner row is unsorted.
     VisibleUnit[] unitsToMove; // A cache for units that have just moved tiles.
@@ -86,21 +88,36 @@ class Renderer
     version(fluid) void setupPreparation() {
         import std.file, std.json;
         
-        Frame unitSelection = grid(paperTheme, .layout!("center","start"));
-        unitSelection.dropSize = Vector2(512, 96);
+        missionTimer = StopWatch(AutoStart.yes);
 
+        UnitInfoCard[] unitCards;
         foreach (unitData; parseJSON(readText("Units.json")).array) {
             VisibleUnit unit = new VisibleUnit(map, unitData, playerFaction);
-            auto unitCard = new UnitInfoCard(unit);
-            unitSelection ~= unitCard;
+            unitCards ~= new UnitInfoCard(unit);
         }
+        Frame unitSelection = grid(paperTheme, .layout!("center","start"), unitCards);
 
         uiRoot.addChild(unitSelection, MapPosition(
             coords: Vector2(GetScreenWidth/2, GetScreenHeight-96),
-            drop: MapDropVector(MapDropDirection.automatic, MapDropDirection.automatic)
+            drop: MapDropVector(MapDropDirection.center, MapDropDirection.automatic)
+        ));
+
+        auto startButtonSlot = new ConditionalNodeSlot(
+            delegate() @safe {
+                writeln("Yippee!");
+                return (missionTimer.peek > msecs(WAITTIME));
+            },
+            button("Start Mission", delegate {map.endTurn;})
+        );
+        uiRoot.addChild(startButtonSlot, MapPosition(
+            coords: Vector2(GetScreenWidth, GetScreenHeight-96),
+            drop: MapDropVector(MapDropDirection.end, MapDropDirection.start)
         ));
 
         uiRoot.updateSize();
+    }
+    version (customgui) void setupPreparation() {
+
     }
 
     Vector2i getGridCoordinates(Vector2 inputPosition, const bool fromScreen) {

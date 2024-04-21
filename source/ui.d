@@ -1,15 +1,12 @@
 module ui;
 
-debug import std.stdio;
+import std.algorithm.comparison;
+import std.string: toStringz;
+debug import std.stdio, std.conv;
 import raylib;
 version (raygui) import raygui;
-import std.string: toStringz;
-import std.algorithm.comparison;
-import std.conv;
-import vunit;
-import oe.unit;
-import oe.common;
-import vector_math;
+import oe.unit, oe.common;
+import vunit, constants, vector_math;
 
 class FontSet {
     private static FontSet defaultSet;
@@ -196,36 +193,4 @@ class MenuList : UIElement
         checkHover();
         if (childElement !is null) childElement.draw;
     }
-}
-
-/*struct TextBox
-{
-    Rectangle area;
-    string text;
-    float fontSize;
-    Vector2 textAnchor;
-
-    this (Rectangle area, string text, float fontSize, Font font) {
-        this.area = area;
-        this.fontSize = fontSize;
-        Vector2 textDimensions = MeasureTextEx(font, text.toStringz, fontSize, style.lineSpacing);
-        this.textAnchor.x = area.x + (area.width - textDimensions.x) / 2; // + (textDimensions / 2); // After merging of my version of raylib-d, change to `textAnchor = area.origin + (area.dimensions - textDimensions) / 2;`.
-        this.textAnchor.y = area.y + (area.height - textDimensions.y) / 2;
-    }
-
-    void draw(UIStyle style, Font font, Vector2 offset) {
-        DrawRectangleRec(offsetRect(area, offset), style.baseColour);
-        DrawTextEx(font, this.text.toStringz, textAnchor+offset, fontSize, style.lineSpacing, style.textColour);
-        if(CheckCollisionPointRec(GetMousePosition(), area)) DrawRectangleRec(area, Colours.Highlight);
-        DrawRectangleLinesEx(area, style.outlineThickness, style.outlineColour);
-    }
-}*/
-
-enum Colours {
-    Shadow = Color(r:0, b:0, g:0, a:150),
-    Highlight = Color(245, 245, 245, 32),
-    Bluelight = Color(180, 200, 255, 24),
-    Startpoint = Color(250, 250, 60, 35),
-    Paper = Color(r:240, b:210, g:234, a:250),
-    Crimson = Color(160, 7, 16, 255),
 }
