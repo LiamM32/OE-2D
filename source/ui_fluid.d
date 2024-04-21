@@ -52,7 +52,7 @@ class UnitInfoCard : Frame
         children ~= imageView((unit.sprite.path));
 
         children ~= label(unit.name);
-        auto statsArea = vframe(paperTheme, .layout!"fill");
+        auto statsArea = vspace(paperTheme, .layout!"fill");
         import std.traits;
         static foreach (stat; FieldNameTuple!UnitStats) static if (stat[0].isUpper) {
             mixin("statsArea.children ~= label(.layout!\"fill\", stat~\": \"~"~"unit."~stat~".to!string);");

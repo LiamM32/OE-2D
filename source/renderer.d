@@ -17,6 +17,7 @@ import sprite;
 version (fluid) {
     import fluid;
     import ui_fluid;
+    import raylib: MouseButton, KeyboardKey;
 }
 version (customgui) {
     import ui;
@@ -37,13 +38,15 @@ class Renderer
     
     Camera2D camera;
     bool cursorOnMap;
-    Tile cursorTile;
+    VisibleTile cursorTile;
 
     Unit selectedUnit;
     StopWatch missionTimer;
 
     VisibleUnit[][] unitsByRow; // Note: The outer array is by vertical screen-space tile location, while the inner row is unsorted.
     VisibleUnit[] unitsToMove; // A cache for units that have just moved tiles.
+
+    protected alias onMap = cursorOnMap;
 
     this(Map map, Faction playerFaction) {
         this.map = map;
@@ -70,15 +73,29 @@ class Renderer
         Vector2i gridSize = map.getSize;
 
         while(!WindowShouldClose) {
-            version(raylib) BeginDrawing();
+            version(raylib) {
+                BeginDrawing();
+                ClearBackground(Colors.BLACK);
+            }
+            updateCameraMouse();
+            version(raylib) BeginMode2D(camera);
+            
             for(int y=0; y<gridSize.y; y++) {
                 for(int x=0; x<gridSize.x; x++) {
                     VisibleTile tile = cast(VisibleTile)getTile(x,y);
-                    DrawTextureV(tile.sprites[0], tile.origin, Colors.WHITE);
+                    version(raylib) DrawTextureV(tile.sprites[0], tile.origin, Colors.WHITE);
                 }
                 foreach(unit; unitsByRow[y]) unit.draw;
             }
 
+            switch (map.getPhase) {
+                case GamePhase.PlayerTurn: renderPlayerTurn; break;
+                default: break;
+            }
+
+            EndMode2D();
+
+            onMap = true;
             version(fluid) uiRoot.draw;
 
             version(raylib) EndDrawing();
@@ -98,16 +115,18 @@ class Renderer
         Frame unitSelection = grid(paperTheme, .layout!("center","start"), unitCards);
 
         uiRoot.addChild(unitSelection, MapPosition(
-            coords: Vector2(GetScreenWidth/2, GetScreenHeight-96),
-            drop: MapDropVector(MapDropDirection.center, MapDropDirection.automatic)
+            coords: Vector2(GetScreenWidth/2, GetScreenHeight),
+            drop: MapDropVector(MapDropDirection.center, MapDropDirection.end)
         ));
 
         auto startButtonSlot = new ConditionalNodeSlot(
             delegate() @safe {
-                writeln("Yippee!");
                 return (missionTimer.peek > msecs(WAITTIME));
             },
-            button("Start Mission", delegate {map.endTurn;})
+            button("Start Mission", delegate() @safe {
+                uiRoot.children = null;
+                map.endTurn;
+            })
         );
         uiRoot.addChild(startButtonSlot, MapPosition(
             coords: Vector2(GetScreenWidth, GetScreenHeight-96),
@@ -120,7 +139,63 @@ class Renderer
 
     }
 
-    Vector2i getGridCoordinates(Vector2 inputPosition, const bool fromScreen) {
+    void setupPlayerTurn() {
+        NodeSlot!Frame floatingMenu;
+        
+        Button endTurnButton = button("End turn", delegate {getGridCoordinates(Vector2(0,0),true);});
+        
+        uiRoot.children ~= floatingMenu;
+        uiRoot.children ~= endTurnButton;
+    }
+
+    protected void renderPlayerTurn() {
+        Vector2i cursorLocation = getGridCoordinates(GetMousePosition, true);
+        cursorTile = onMap ? cast(VisibleTile)getTile(cursorLocation, true) : null;
+        if (cursorTile !is null && cursorOnMap) DrawRectangleRec(cursorTile.rect, Colours.Highlight);
+    }
+
+    void updateCameraMouse (Rectangle mapView = Rectangle(0, 0, GetScreenWidth, GetScreenHeight)) { 
+        alias mousePosition = GetMousePosition;
+        
+        Vector2i mouseLocation = getGridCoordinates(mousePosition, true);
+        cursorTile = cast(VisibleTile)map.getTile(mouseLocation, true);
+        
+        Vector2 targetOffset;
+        
+        if (IsMouseButtonDown(MouseButton.MOUSE_BUTTON_RIGHT)) {
+            targetOffset = GetMouseDelta();
+        } else {
+            float framelength = GetFrameTime();
+            if (IsKeyDown(KeyboardKey.KEY_A)) {
+                targetOffset.x = -framelength * 24.0;
+            }
+            if (IsKeyDown(KeyboardKey.KEY_D)) {
+                targetOffset.x = framelength * 24.0;
+            }
+            if (IsKeyDown(KeyboardKey.KEY_W)) {
+                targetOffset.y = -framelength * 24.0;
+            }
+            if (IsKeyDown(KeyboardKey.KEY_S)) {
+                targetOffset.y = framelength * 24.0;
+            }
+        }
+        camera.target -= targetOffset;
+
+        auto mapArea = Rectangle(0, 0, map.getWidth*TILEWIDTH, map.getLength*TILEHEIGHT);
+
+        Vector2 margins = {0, 0}; // This step can later be reworked to happen less frequently.
+        if (mapArea.width < mapView.width) margins.x = (mapView.width-mapArea.width)/2;
+        if (mapArea.height < mapView.height) margins.y = (mapView.height-mapArea.height)/2;
+
+        Vector2 topLeftPosition = GetScreenToWorld2D(Vector2(mapView.x, mapView.y), camera);
+        Vector2 bottomRightPosition = GetScreenToWorld2D(Vector2(mapView.x+mapView.width, mapView.y+mapView.height), camera);
+        if (topLeftPosition.x < (mapArea.x - margins.x)) camera.target.x -= topLeftPosition.x - margins.x;
+        else if (bottomRightPosition.x > mapArea.width + margins.x) camera.target.x -= bottomRightPosition.x + margins.x - mapArea.width;
+        if (topLeftPosition.y < (mapArea.y - margins.y)) camera.target.y -= topLeftPosition.y + margins.y;
+        else if (bottomRightPosition.y > (mapArea.y + mapArea.height)) camera.target.y -= bottomRightPosition.y - (mapArea.y + mapArea.height + margins.y);
+    }
+
+    Vector2i getGridCoordinates(Vector2 inputPosition, const bool fromScreen) @trusted {
         if (fromScreen) inputPosition = inputPosition.GetScreenToWorld2D(camera);
         Vector2i result;
         result.x = cast(int)(inputPosition.x / TILEWIDTH);
