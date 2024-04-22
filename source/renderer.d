@@ -3,6 +3,7 @@ debug {
     import std.conv;
 }
 import std.algorithm;
+import std.array;
 import std.datetime.stopwatch;
 
 version (raylib) import raylib;
@@ -30,10 +31,16 @@ class Renderer
     
     Map map;
     Faction playerFaction;
+    Vector2i screenSize;
 
-    alias this = map;
+    //alias this = map;
 
-    version (fluid) MapFrame uiRoot;
+    VisibleTile[][] grid;
+
+    version (fluid) {
+        MapFrame uiRoot;
+        protected ConditionalNodeSlot!Button nextTurnSlot;
+    }
     version (customgui) UIElement[] gui;
     
     Camera2D camera;
@@ -46,19 +53,34 @@ class Renderer
     VisibleUnit[][] unitsByRow; // Note: The outer array is by vertical screen-space tile location, while the inner row is unsorted.
     VisibleUnit[] unitsToMove; // A cache for units that have just moved tiles.
 
+    void delegate() actionAfterDraw;
+
     protected alias onMap = cursorOnMap;
 
     this(Map map, Faction playerFaction) {
         this.map = map;
         this.playerFaction = playerFaction;
 
+        screenSize.x = cast(int)GetScreenWidth();
+        screenSize.y = cast(int)GetScreenHeight();
+
+        this.grid.length = map.getWidth;
+        foreach(x, column; cast(VisibleTile[][])map.getGrid) {
+            foreach(y, tile; column) this.grid[x] ~= tile;
+        }
+
         camera = Camera2D(zoom:1.0f, rotation:0.0f);
-        camera.offset = Vector2(GetScreenWidth/2, GetScreenHeight/2);
+        camera.offset = Vector2(screenSize.x/2, screenSize.y/2);
         camera.target = Vector2(map.getWidth*TILEWIDTH/2, map.getLength*TILEWIDTH/2);
 
         version (fluid) {
             auto theme = paperTheme;
+            nextTurnSlot = new ConditionalNodeSlot!Button(null);
             uiRoot = mapFrame(theme, .layout!("fill","fill"));
+            uiRoot.addChild(nextTurnSlot, MapPosition(
+                    Vector2(screenSize.x, screenSize.y),
+                    drop: MapDropVector(MapDropDirection.end, MapDropDirection.end)
+                ));
         }
 
         unitsByRow.length = map.getLength;
@@ -73,23 +95,30 @@ class Renderer
         Vector2i gridSize = map.getSize;
 
         while(!WindowShouldClose) {
+            updateCameraMouse();
             version(raylib) {
                 BeginDrawing();
                 ClearBackground(Colors.BLACK);
             }
-            updateCameraMouse();
+            
             version(raylib) BeginMode2D(camera);
             
             for(int y=0; y<gridSize.y; y++) {
                 for(int x=0; x<gridSize.x; x++) {
-                    VisibleTile tile = cast(VisibleTile)getTile(x,y);
-                    version(raylib) DrawTextureV(tile.sprites[0], tile.origin, Colors.WHITE);
+                    VisibleTile tile = grid[x][y];
+                    version(raylib) {
+                        DrawTextureV(tile.sprites[0], tile.origin, Colors.WHITE);
+                        foreach(highlight; tile.highlights) DrawRectangleRec(tile.rect, highlight);
+                    }
+                }
+                if (map.getPhase==GamePhase.PlayerTurn && cursorTile !is null && cursorTile.location.y==y) {
+                    DrawRectangleRec(cursorTile.rect, Colours.whitelight);
                 }
                 foreach(unit; unitsByRow[y]) unit.draw;
             }
 
             switch (map.getPhase) {
-                case GamePhase.PlayerTurn: renderPlayerTurn; break;
+                case GamePhase.PlayerTurn: cyclePlayerTurn; break;
                 default: break;
             }
 
@@ -99,6 +128,11 @@ class Renderer
             version(fluid) uiRoot.draw;
 
             version(raylib) EndDrawing();
+
+            if (actionAfterDraw !is null) {
+                actionAfterDraw();
+                actionAfterDraw = null;
+            }
         }
     }
 
@@ -112,26 +146,29 @@ class Renderer
             VisibleUnit unit = new VisibleUnit(map, unitData, playerFaction);
             unitCards ~= new UnitInfoCard(unit);
         }
-        Frame unitSelection = grid(paperTheme, .layout!("center","start"), unitCards);
+        Frame unitSelection = fluid.grid.grid(paperTheme, .layout!("center","start"), unitCards);
 
         uiRoot.addChild(unitSelection, MapPosition(
-            coords: Vector2(GetScreenWidth/2, GetScreenHeight),
+            coords: Vector2(screenSize.x/2, screenSize.y),
             drop: MapDropVector(MapDropDirection.center, MapDropDirection.end)
         ));
 
-        auto startButtonSlot = new ConditionalNodeSlot(
-            delegate() @safe {
-                return (missionTimer.peek > msecs(WAITTIME));
-            },
-            button("Start Mission", delegate() @safe {
-                uiRoot.children = null;
-                map.endTurn;
-            })
-        );
-        uiRoot.addChild(startButtonSlot, MapPosition(
-            coords: Vector2(GetScreenWidth, GetScreenHeight-96),
-            drop: MapDropVector(MapDropDirection.end, MapDropDirection.start)
-        ));
+        // Todo: This should later be changed when the `Mission` class is removed.
+        import mission;
+        auto startTiles = (cast(Mission)map).startingTiles;
+        foreach(tile; startTiles) {
+            tile.highlights = [Colours.goldlight];
+        }
+        
+        nextTurnSlot.condition = delegate() @safe {
+            return (missionTimer.peek * unitCards.length > msecs(WAITTIME) * startTiles.length);
+        };
+        nextTurnSlot = button("Start Mission", delegate() @safe {
+            //uiRoot.children = null;
+            map.endTurn();
+            //Todo: This should later be removed when instead it's called using a delegate or signal in the `Map` object.
+            actionAfterDraw = &setupPlayerTurn;
+        });
 
         uiRoot.updateSize();
     }
@@ -139,19 +176,37 @@ class Renderer
 
     }
 
-    void setupPlayerTurn() {
-        NodeSlot!Frame floatingMenu;
+    void setupPlayerTurn() @safe {
+        foreach (tile; grid.join) tile.highlights.length = 0;
+        //uiRoot.children = [nextTurnSlot];
+        uiRoot.updateSize;
+
+        Action currentAction = Action.nothing;
         
-        Button endTurnButton = button("End turn", delegate {getGridCoordinates(Vector2(0,0),true);});
+        foreach (node; uiRoot.children) if (node !is nextTurnSlot) {
+            node.toRemove = true;
+        }
         
-        uiRoot.children ~= floatingMenu;
-        uiRoot.children ~= endTurnButton;
+        NodeSlot!Frame floatingMenu = nodeSlot!Frame();
+        Button endTurnButton = button("End turn", delegate {
+            map.endTurn;
+        });
+
+        nextTurnSlot.condition = delegate() {return (selectedUnit is null && currentAction == Action.nothing);};
+        nextTurnSlot = endTurnButton;
+        
+        uiRoot.addChild(floatingMenu,
+            MapPosition(
+                cast(Vector2)screenSize/2,
+                drop: MapDropVector(MapDropDirection.end, MapDropDirection.end)
+            )
+        );
+
+        uiRoot.updateSize;
     }
 
-    protected void renderPlayerTurn() {
-        Vector2i cursorLocation = getGridCoordinates(GetMousePosition, true);
-        cursorTile = onMap ? cast(VisibleTile)getTile(cursorLocation, true) : null;
-        if (cursorTile !is null && cursorOnMap) DrawRectangleRec(cursorTile.rect, Colours.Highlight);
+    protected void cyclePlayerTurn() {
+        
     }
 
     void updateCameraMouse (Rectangle mapView = Rectangle(0, 0, GetScreenWidth, GetScreenHeight)) { 

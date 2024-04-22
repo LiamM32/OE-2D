@@ -8,6 +8,7 @@ import sprite;
 class VisibleTile : Tile//T!VisibleTile
 {
     Sprite[2] sprites; // `sprite[0]` is the ground sprite.
+    Color[] highlights;
     Rectangle rect;
 
     this(uint x, uint y, JSONValue tileData) {

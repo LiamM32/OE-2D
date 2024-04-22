@@ -214,7 +214,7 @@ class Mission : Map
             drawUnits();
             EndMode2D();
 
-            DrawRectangleRec(menuBox, Colours.Paper);
+            DrawRectangleRec(menuBox, Colours.paper);
             foreach (card; unitCards) if (card.unit.currentTile is null) {
                 card.draw();
                 if (leftClick && card.available && CheckCollisionPointRec(mousePosition, card.area)) this.selectedUnit = card.unit;
@@ -279,7 +279,7 @@ class Mission : Map
         bool onGrid = true;
         bool leftClick = false;
         VisibleTile cursorTile;
-        Action playerAction = Action.Nothing;
+        Action playerAction = Action.nothing;
 
         MenuList itemsList;
 
@@ -291,14 +291,14 @@ class Mission : Map
             Panel unitMenuPanel;
             {
                 Rectangle buttonOutline = {x:0, y:0, 80, 32};
-                TextButton moveButton = new TextButton(buttonOutline, "Move", 20, delegate {playerAction = Action.Move;});
+                TextButton moveButton = new TextButton(buttonOutline, "Move", 20, delegate {playerAction = Action.moving;});
                 
                 buttonOutline.y += 32;
-                TextButton attackButton = new TextButton(buttonOutline, "Attack", 20, delegate {playerAction = Action.Attack;});
+                TextButton attackButton = new TextButton(buttonOutline, "Attack", 20, delegate {playerAction = Action.attacking;});
                 
                 buttonOutline.y += 32;
                 TextButton itemsButton = new TextButton(buttonOutline, "Items", 20, delegate {
-                    playerAction = Action.Items;
+                    playerAction = Action.items;
                     MenuList optionsList;
                     itemsList = new MenuList(Vector2(GetScreenWidth-182, GetScreenHeight-256), selectedUnit.inventory, delegate(ubyte i) {
                         ItemOption[] options = selectedUnit.inventory[i].getOptions(selectedUnit);
@@ -306,7 +306,7 @@ class Mission : Map
                             options,
                             delegate(ubyte o) {
                                 options[o].action(selectedUnit); 
-                                playerAction = Action.Nothing;
+                                playerAction = Action.nothing;
                                 itemsList.childElement = null;
                             }
                         );
@@ -318,15 +318,15 @@ class Mission : Map
                 TextButton waitButton = new TextButton(buttonOutline, "Wait", 20, delegate {
                     selectedUnit.hasActed = true;
                     selectedUnit.finishedTurn = true;
-                    playerAction = Action.Nothing;
+                    playerAction = Action.nothing;
                     selectedUnit = null;
                 });
                 
                 buttonOutline.y += 32;
                 TextButton backButton = new TextButton(buttonOutline, "Back", 20, delegate {
-                    if (playerAction != Action.Nothing) {
-                        playerAction = Action.Nothing;
-                        if (playerAction == Action.Items) {
+                    if (playerAction != Action.nothing) {
+                        playerAction = Action.nothing;
+                        if (playerAction == Action.items) {
                             destroy(itemsList);
                             itemsList = null;
                         }
@@ -335,19 +335,19 @@ class Mission : Map
                 unitMenuPanel = new Panel(Vector2(GetScreenWidth-80, GetScreenHeight-160));
                 unitMenuPanel.children = [moveButton, attackButton, itemsButton, waitButton, backButton];
             }
-            TextButton finishButton = new TextButton(Rectangle(x:GetScreenWidth-128, y:GetScreenHeight-32, 128, 32), "Finish turn", 20, delegate {playerAction = Action.EndTurn;});
-            TextButton backButton = new TextButton(Rectangle(x:GetScreenWidth-80, y:GetScreenHeight-32, 80, 32), "Back", 20, delegate {playerAction = Action.Nothing;});
+            TextButton finishButton = new TextButton(Rectangle(x:GetScreenWidth-128, y:GetScreenHeight-32, 128, 32), "Finish turn", 20, delegate {playerAction = Action.endTurn;});
+            TextButton backButton = new TextButton(Rectangle(x:GetScreenWidth-80, y:GetScreenHeight-32, 80, 32), "Back", 20, delegate {playerAction = Action.nothing;});
             
             AttackInfoPanel attackInfoPanel;
         } else version (fluid) {
             Frame unitMenuPanel;
             auto menuPanel = nodeSlot!Node();
             {
-                auto innerBackButton = button(.layout!"fill", "Back", delegate {playerAction = Action.Nothing; menuPanel = unitMenuPanel;});
-                auto moveButton = button(.layout!("fill"), "Move", delegate {playerAction = Action.Move; menuPanel = innerBackButton;});
-                auto attackButton = button(.layout!("fill"), "Attack", delegate {playerAction = Action.Attack; menuPanel = innerBackButton;});
+                auto innerBackButton = button(.layout!"fill", "Back", delegate {playerAction = Action.nothing; menuPanel = unitMenuPanel;});
+                auto moveButton = button(.layout!("fill"), "Move", delegate {playerAction = Action.moving; menuPanel = innerBackButton;});
+                auto attackButton = button(.layout!("fill"), "Attack", delegate {playerAction = Action.attacking; menuPanel = innerBackButton;});
                 auto itemsButton = button(.layout!("fill"), "Items", delegate {
-                    playerAction = Action.Items;
+                    playerAction = Action.items;
                     auto itemsMenu = vframe();
                     foreach (item; selectedUnit.inventory) {
                         itemsMenu.children ~= button(.layout!"fill", item.name, delegate {
@@ -368,7 +368,7 @@ class Mission : Map
                 auto outerBackButton = button(.layout!"fill", "Back", delegate {selectedUnit = null; menuPanel.clear;});
                 unitMenuPanel = vframe(.layout!("end", "end"), moveButton, attackButton, itemsButton, outerBackButton);
             }
-            auto finishButton = button("End Turn", delegate {playerAction = Action.EndTurn;});
+            auto finishButton = button("End Turn", delegate {playerAction = Action.endTurn;});
             fluidGUI.addChild(menuPanel, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight-24), drop:MapDropVector(MapDropDirection.end, MapDropDirection.end)));
             fluidGUI.addChild(finishButton, MapPosition(coords:Vector2(x:GetScreenWidth, y:GetScreenHeight), drop:MapDropVector(MapDropDirection.end, MapDropDirection.automatic)));
             fluidGUI.updateSize;
@@ -409,33 +409,33 @@ class Mission : Map
             drawGround();
 
             if (selectedUnit !is null) switch(playerAction) {
-                if (!selectedUnit.acting) DrawRectangleRec((cast(VisibleTile)selectedUnit.currentTile).rect, Colours.Highlight);
+                if (!selectedUnit.acting) DrawRectangleRec((cast(VisibleTile)selectedUnit.currentTile).rect, Colours.whitelight);
                 
-                case Action.Move:
+                case Action.moving:
                     foreach (tile; selectedUnit.getReachable!Tile) {
                         DrawRectangleRec((cast(VisibleTile)tile).rect, Color(60, 240, 120, 30));
                         //debug DrawTextureEx(arrow, Vector2(cast(float)(tile.x*TILEWIDTH+32), cast(float)(tile.y*TILEWIDTH+32)), tileAccess.directionTo.getAngle, 1.0f, Color(120, 240, 120, 60));
                         if (leftClick && tile.location == mouseGridPosition) {
                             selectedUnit.move(cursorTile.x, cursorTile.y);
-                            playerAction = Action.Nothing;
+                            playerAction = Action.nothing;
                         }
                     }
                     break;
-                case Action.Attack:
+                case Action.attacking:
                     debug assert (selectedUnit.getAttackable!Tile.length > 0, "Attackable tiles not cached for unit "~selectedUnit.name);
                     foreach (tile; selectedUnit.getAttackable!Tile) {
                         if (tile.occupant is null) DrawRectangleRec((cast(VisibleTile)tile).rect, Color(200,60,60,30));
                         else if (canFind(playerFaction.enemies, tile.occupant.faction)) DrawRectangleRec((cast(VisibleTile)tile).rect, Color(240,60,60,40));
                         if (leftClick && tile.location == mouseGridPosition) {
                             selectedUnit.attack(cursorTile.x, cursorTile.y);
-                            playerAction = Action.Nothing;
+                            playerAction = Action.nothing;
                         }
                     }
                     break;
                 default: break;
             }
             if (onGrid && cursorTile !is null) {
-                if (leftClick && cursorTile.occupant !is null && playerAction == Action.Nothing && cursorTile.occupant.faction == playerFaction) {
+                if (leftClick && cursorTile.occupant !is null && playerAction == Action.nothing && cursorTile.occupant.faction == playerFaction) {
                     selectedUnit = cast(VisibleUnit)cursorTile.occupant;
                     selectedUnit.updateReach();
                     version (fluid) menuPanel = unitMenuPanel;
@@ -443,7 +443,7 @@ class Mission : Map
 
                 if (unitInfoPanel.unit != cursorTile.occupant) {
                     unitInfoPanel.resetToUnit(cursorTile.occupant);
-                    version (customgui) if (playerAction==Action.Attack) {
+                    version (customgui) if (playerAction==Action.attacking) {
                         if (cursorTile.occupant !is null && canFind(playerFaction.enemies, cursorTile.occupant.faction)) attackInfoPanel = new AttackInfoPanel(selectedUnit, cursorTile.occupant, true, Vector2(0,0));
                         else {
                             destroy(attackInfoPanel);
@@ -452,7 +452,7 @@ class Mission : Map
                     }
                 }
 
-                DrawRectangleRec(cursorTile.rect, Colours.Highlight); // Highlights the tile where the cursor is.
+                DrawRectangleRec(cursorTile.rect, Colours.whitelight); // Highlights the tile where the cursor is.
             }
 
             drawGridMarkers(missionTimer.peek.total!"msecs");
@@ -462,7 +462,7 @@ class Mission : Map
             onGrid = (cursorTile !is null);
             
             if (selectedUnit !is null) {
-                if (playerAction == Action.Nothing) {
+                if (playerAction == Action.nothing) {
                     version (customgui) {
                         version (floatingMenu) {
                             unitMenuPanel.origin.x = clamp(cast(float)TILEWIDTH*(selectedUnit.xlocation+(selectedUnit.MvRemaining/2)+2), GetScreenWidth/3, GetScreenWidth-80.0f);
@@ -470,24 +470,24 @@ class Mission : Map
                         }
                         unitMenuPanel.draw();
                     } version (raygui) {
-                        if (selectedUnit.MvRemaining > 1) if (GuiButton(moveButton, "#150#Move")) playerAction = Action.Move;
-                        if (!selectedUnit.hasActed) if (GuiButton(attackButton, "#155#Attack")) playerAction = Action.Attack;
-                        if (GuiButton(itemsButton, "Items")) playerAction = Action.Items;
+                        if (selectedUnit.MvRemaining > 1) if (GuiButton(moveButton, "#150#Move")) playerAction = Action.moving;
+                        if (!selectedUnit.hasActed) if (GuiButton(attackButton, "#155#Attack")) playerAction = Action.attacking;
+                        if (GuiButton(itemsButton, "Items")) playerAction = Action.items;
                         if (GuiButton(waitButton, "#149#Wait ")) {
                             selectedUnit.hasActed = true;
                             selectedUnit.finishedTurn = true;
-                            playerAction = Action.Nothing;
+                            playerAction = Action.nothing;
                             selectedUnit = null;
                         }
                         if (GuiButton(backButton, "Back")) selectedUnit = null;
                     }
                 } else {
                     version (customgui) {
-                        if (playerAction == Action.Items) itemsList.draw;
+                        if (playerAction == Action.items) itemsList.draw;
                         backButton.draw;
-                        if (playerAction == Action.Attack && attackInfoPanel !is null) attackInfoPanel.draw;
+                        if (playerAction == Action.attacking && attackInfoPanel !is null) attackInfoPanel.draw;
                     } version (raygui) {
-                        if (GuiButton(backButton, "Back")) playerAction = Action.Nothing;
+                        if (GuiButton(backButton, "Back")) playerAction = Action.nothing;
                     }
                 }
             } else {
@@ -496,11 +496,11 @@ class Mission : Map
                     if (unit.hasActed) remaining++;
                     if (unit.MvRemaining < unit.Mv) remaining++;
                 }
-                if (remaining >= playerFaction.units.length && playerAction != Action.EndTurn) {
+                if (remaining >= playerFaction.units.length && playerAction != Action.endTurn) {
                     version (customgui) {
                         finishButton.draw;
                     } version (raygui) {
-                        if (GuiButton(finishButton, "Finish turn")) playerAction = Action.EndTurn;
+                        if (GuiButton(finishButton, "Finish turn")) playerAction = Action.endTurn;
                     }
                 }
             }
@@ -513,7 +513,7 @@ class Mission : Map
 
             version (drawFPS) DrawFPS(20, 20);
             EndDrawing();
-            if (playerAction == Action.EndTurn) {
+            if (playerAction == Action.endTurn) {
                 bool allFinished = true;
                 foreach (unit; cast(VisibleUnit[]) playerFaction.units) {
                     if (unit.acting) allFinished = false;
@@ -573,7 +573,7 @@ class Mission : Map
         opacity = cast(ubyte) (sinwave/4);
         foreach (unit; cast(VisibleUnit[]) playerFaction.units) {
             if (unit !is selectedUnit || unit.acting) DrawEllipse(cast(int)unit.position.x+TILEWIDTH/2, cast(int)unit.position.y+TILEHEIGHT/2, cast(float)(TILEWIDTH*0.4375), cast(float)(TILEHEIGHT*0.4375), Color(220,250,250,opacity));
-            else DrawRectangleRec((cast(VisibleTile)unit.currentTile).rect, Colours.Bluelight);
+            else DrawRectangleRec((cast(VisibleTile)unit.currentTile).rect, Colours.bluelight);
         }
     }
 

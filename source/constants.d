@@ -4,7 +4,7 @@ const int TILEHEIGHT = 56;
 debug const int WAITTIME = 800;
 else const int WAITTIME = 1600;
 
-enum Action:ubyte {Nothing, Move, Attack, Items, EndTurn};
+enum Action:ubyte {nothing, moving, attacking, items, endTurn};
 
 const uint FLUID_VERSION = 7;
 /*const uint FLUID_VERSION = CheckFluidVersion();
@@ -23,10 +23,10 @@ uint CheckFluidVersion() {
 
 import raylib: Color, Colors;
 enum Colours {
-    Shadow = Color(r:0, b:0, g:0, a:150),
-    Highlight = Color(245, 245, 245, 32),
-    Bluelight = Color(180, 200, 255, 24),
-    Startpoint = Color(250, 250, 60, 35),
-    Paper = Color(r:240, b:210, g:234, a:240),
-    Crimson = Color(160, 7, 16, 255),
+    shadow = Color(r:0, b:0, g:0, a:150),
+    whitelight = Color(245, 245, 245, 32),
+    bluelight = Color(180, 200, 255, 24),
+    goldlight = Color(250, 250, 60, 35),
+    paper = Color(r:240, b:210, g:234, a:240),
+    crimson = Color(160, 7, 16, 255),
 }

@@ -10,8 +10,8 @@ static import raylib;
 
 Theme paperTheme() {
     return Theme(
-        rule(backgroundColor = Colours.Paper),
-        rule!Frame(backgroundColor = Colours.Paper),
+        rule(backgroundColor = Colours.paper),
+        rule!Frame(backgroundColor = Colours.paper),
         rule!Grid(
 
             lineColor = Colors.BLACK, border = 1.0f),
@@ -24,17 +24,17 @@ T to(T=fluid.Texture)(raylib.Texture rayTexture) if (is(T==fluid.Texture)) {
     return result;
 }
 
-class ConditionalNodeSlot : NodeSlot!Node
+class ConditionalNodeSlot(T: Node) : NodeSlot!T
 {
-    bool delegate() @safe drawCondition;
+    bool delegate() @safe condition;
 
-    this(bool delegate() @safe drawCondition, Node childNode=null) {
-        this.drawCondition = drawCondition;
+    this(bool delegate() @safe condition, T childNode=null) {
+        this.condition = condition;
         opAssign(childNode);
     }
     
     protected override void drawImpl(Rectangle outer, Rectangle inner) {
-        if (drawCondition()==true) super.drawImpl(outer, inner);
+        if (condition !is null && condition()==true) super.drawImpl(outer, inner);
     }
 }
 

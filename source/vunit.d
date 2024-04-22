@@ -86,12 +86,12 @@ class VisibleUnit : Unit
         if (queue.length == 0) return false;
         bool done;
         switch (queue[0].action) {
-            case Action.Move:
+            case Action.moving:
                 setSpriteState(SpriteAction.walk);
                 stepTowards(queue[0].tile);
                 if (position == gridToPixels(queue[0].tile.location)) done = true;
                 break;
-            case Action.Attack:
+            case Action.attacking:
                 setSpriteState(SpriteAction.attack);
                 super.attack(queue[0].tile.x, queue[0].tile.y);
                 done = true;
@@ -127,7 +127,7 @@ class VisibleUnit : Unit
             debug writeln("Path length is ", path.length);
             foreach(tile; path) {
                 debug assert(tile !is null);
-                this.queue ~= ActionStep(action:Action.Move, tile:tile);
+                this.queue ~= ActionStep(action:Action.moving, tile:tile);
             }
             super.move(x, y);
             return true;
@@ -136,7 +136,7 @@ class VisibleUnit : Unit
 
     override bool attack(uint x, uint y) {
         if (canAttack(x, y)) {
-            queue ~= ActionStep(action:Action.Attack, tile:map.getTile(x,y));
+            queue ~= ActionStep(action:Action.attacking, tile:map.getTile(x,y));
             return true;
         } else return false;
     }

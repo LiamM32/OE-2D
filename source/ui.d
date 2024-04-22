@@ -59,7 +59,7 @@ class UIStyle
     }
 
     static UIStyle getDefault() {
-        if (defaultStyle is null) defaultStyle = new UIStyle(Colours.Paper, Colors.BLACK, Colors.BROWN, 1.0f, FontSet.getDefault);
+        if (defaultStyle is null) defaultStyle = new UIStyle(Colours.paper, Colors.BLACK, Colors.BROWN, 1.0f, FontSet.getDefault);
         return defaultStyle;
     }
 }
@@ -141,7 +141,7 @@ version (customgui) class TextButton : UIElement
         DrawTextEx(font, this.text.toStringz, textAnchor+offset, fontSize, style.lineSpacing, style.textColour);
         if(CheckCollisionPointRec(GetMousePosition(), area)) {
             if (updateOnHover && onHover !is null) onHover();
-            DrawRectangleRec(area, Colours.Highlight);
+            DrawRectangleRec(area, Colours.whitelight);
             if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) onClick();
         }
         DrawRectangleLinesEx(area, style.outlineThickness, style.outlineColour);
