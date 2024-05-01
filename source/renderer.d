@@ -21,8 +21,7 @@ version (fluid) {
     import raylib: MouseButton, KeyboardKey;
 }
 version (customgui) {
-    import ui;
-    import ui_specialized;
+    import ui, ui_specialized;
 }
 
 class Renderer
@@ -44,10 +43,11 @@ class Renderer
     version (customgui) UIElement[] gui;
     
     Camera2D camera;
+    Rectangle mapView;
     bool cursorOnMap;
     VisibleTile cursorTile;
 
-    Unit selectedUnit;
+    VisibleUnit selectedUnit;
     StopWatch missionTimer;
 
     VisibleUnit[][] unitsByRow; // Note: The outer array is by vertical screen-space tile location, while the inner row is unsorted.
@@ -58,6 +58,8 @@ class Renderer
     protected alias onMap = cursorOnMap;
 
     this(Map map, Faction playerFaction) {
+        this.instance = this;
+        
         this.map = map;
         this.playerFaction = playerFaction;
 
@@ -74,13 +76,12 @@ class Renderer
         camera.target = Vector2(map.getWidth*TILEWIDTH/2, map.getLength*TILEWIDTH/2);
 
         version (fluid) {
-            auto theme = paperTheme;
             nextTurnSlot = new ConditionalNodeSlot!Button(null);
-            uiRoot = mapFrame(theme, .layout!("fill","fill"));
+            uiRoot = mapFrame(paperTheme, .layout!("fill","fill"));
             uiRoot.addChild(nextTurnSlot, MapPosition(
-                    Vector2(screenSize.x, screenSize.y),
-                    drop: MapDropVector(MapDropDirection.end, MapDropDirection.end)
-                ));
+                Vector2(screenSize.x, screenSize.y),
+                drop: MapDropVector(MapDropDirection.end, MapDropDirection.end)
+            ));
         }
 
         unitsByRow.length = map.getLength;
@@ -88,11 +89,14 @@ class Renderer
             unitsByRow[cast(uint)(unit.feetPosition.y/TILEHEIGHT)] ~= unit;
         }
 
+        mapView = Rectangle(0, 0, GetScreenWidth, GetScreenHeight);
+
         setupPreparation;
     }
 
     void render() {
         Vector2i gridSize = map.getSize;
+        
 
         while(!WindowShouldClose) {
             updateCameraMouse();
@@ -136,80 +140,97 @@ class Renderer
         }
     }
 
-    version(fluid) void setupPreparation() {
-        import std.file, std.json;
+    void setupPreparation() {
+        import std.file, std.json, mission;
+
+        mapView.height = GetScreenHeight - 96;
         
         missionTimer = StopWatch(AutoStart.yes);
 
-        UnitInfoCard[] unitCards;
-        foreach (unitData; parseJSON(readText("Units.json")).array) {
-            VisibleUnit unit = new VisibleUnit(map, unitData, playerFaction);
-            unitCards ~= new UnitInfoCard(unit);
-        }
-        Frame unitSelection = fluid.grid.grid(paperTheme, .layout!("center","start"), unitCards);
-
-        uiRoot.addChild(unitSelection, MapPosition(
-            coords: Vector2(screenSize.x/2, screenSize.y),
-            drop: MapDropVector(MapDropDirection.center, MapDropDirection.end)
-        ));
-
         // Todo: This should later be changed when the `Mission` class is removed.
-        import mission;
         auto startTiles = (cast(Mission)map).startingTiles;
         foreach(tile; startTiles) {
             tile.highlights = [Colours.goldlight];
         }
-        
-        nextTurnSlot.condition = delegate() @safe {
-            return (missionTimer.peek * unitCards.length > msecs(WAITTIME) * startTiles.length);
-        };
-        nextTurnSlot = button("Start Mission", delegate() @safe {
-            //uiRoot.children = null;
-            map.endTurn();
-            //Todo: This should later be removed when instead it's called using a delegate or signal in the `Map` object.
-            actionAfterDraw = &setupPlayerTurn;
-        });
 
-        uiRoot.updateSize();
+        auto unitCards = new GCArray!UnitInfoCard;
+        //UnitInfoCard[] unitCards = new UnitInfoCard[0];
+        foreach (unitData; parseJSON(readText("Units.json")).array) {
+            VisibleUnit unit = new VisibleUnit(map, unitData, playerFaction);
+            unitCards ~= new UnitInfoCard(unit);
+        }
+
+        version (customgui) {
+
+        }
+        version (fluid) {
+            Frame unitSelection = fluid.grid.grid(paperTheme, .layout!("center","start"), unitCards);
+
+            uiRoot.addChild(unitSelection, MapPosition(
+                coords: Vector2(screenSize.x/2, screenSize.y),
+                drop: MapDropVector(MapDropDirection.center, MapDropDirection.end)
+            ));
+
+            debug if (canFind(unitCards, null)) throw new Exception("Empty cards");
+            
+            nextTurnSlot.condition = delegate() @safe {
+                auto deployed = count!(card => card.unit.currentTile !is null)(unitCards);
+                return (missionTimer.peek * deployed > msecs(WAITTIME) * startTiles.length);
+            };
+            nextTurnSlot = button("Start Mission", delegate() @safe {
+                //uiRoot.children = null;
+                map.endTurn();
+                //Todo: This should later be removed when instead it's called using a delegate or signal in the `Map` object.
+                actionAfterDraw = &setupPlayerTurn;
+            });
+
+            uiRoot.updateSize();
+        }
     }
-    version (customgui) void setupPreparation() {
 
+    void cyclePreparation() {
+        if (selectedUnit !is null) DrawTextureV(selectedUnit.sprite, selectedUnit.position - TILESIZE, Colors.WHITE);
     }
 
     void setupPlayerTurn() @safe {
         foreach (tile; grid.join) tile.highlights.length = 0;
-        //uiRoot.children = [nextTurnSlot];
-        uiRoot.updateSize;
 
         Action currentAction = Action.nothing;
         
-        foreach (node; uiRoot.children) if (node !is nextTurnSlot) {
-            node.toRemove = true;
+        version (fluid) {
+            uiRoot.updateSize;
+            
+            foreach (node; uiRoot.children) if (node !is nextTurnSlot) {
+                node.toRemove = true;
+            }
+            
+            NodeSlot!Frame floatingMenu = nodeSlot!Frame();
+            Button endTurnButton = button("End turn", delegate {
+                map.endTurn;
+            });
+
+            nextTurnSlot.condition = delegate() {return (selectedUnit is null && currentAction == Action.nothing);};
+            nextTurnSlot = endTurnButton;
+            
+            uiRoot.addChild(floatingMenu,
+                MapPosition(
+                    cast(Vector2)screenSize/2,
+                    drop: MapDropVector(MapDropDirection.end, MapDropDirection.end)
+                )
+            );
+
+            uiRoot.updateSize;
         }
-        
-        NodeSlot!Frame floatingMenu = nodeSlot!Frame();
-        Button endTurnButton = button("End turn", delegate {
-            map.endTurn;
-        });
+        else version (customgui) {
 
-        nextTurnSlot.condition = delegate() {return (selectedUnit is null && currentAction == Action.nothing);};
-        nextTurnSlot = endTurnButton;
-        
-        uiRoot.addChild(floatingMenu,
-            MapPosition(
-                cast(Vector2)screenSize/2,
-                drop: MapDropVector(MapDropDirection.end, MapDropDirection.end)
-            )
-        );
-
-        uiRoot.updateSize;
+        }
     }
 
     protected void cyclePlayerTurn() {
         
     }
 
-    void updateCameraMouse (Rectangle mapView = Rectangle(0, 0, GetScreenWidth, GetScreenHeight)) { 
+    void updateCameraMouse() { 
         alias mousePosition = GetMousePosition;
         
         Vector2i mouseLocation = getGridCoordinates(mousePosition, true);
@@ -276,4 +297,9 @@ class Renderer
             rowUnits ~= destinations_units[cast(int)i];
         }
     }
+}
+
+class GCArray(T) {
+    T[] array;
+    alias this = array;
 }

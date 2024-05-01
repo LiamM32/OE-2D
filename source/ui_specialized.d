@@ -19,7 +19,7 @@ class UnitInfoCard : UIElement
 
     version (raygui) {} else void delegate() onClick;
     
-    this (VisibleUnit unit, Vector2 origin) {
+    this (VisibleUnit unit, Vector2 origin = Vector2.init) {
         this.area = Rectangle(origin.x, origin.y, 192, 80);
         this.imageFrame = Rectangle(origin.x+4, origin.y+4, 64, 64);
         this.unit = unit;

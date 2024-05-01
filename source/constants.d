@@ -1,5 +1,8 @@
+import raylib: Vector2;
+
 const int TILEWIDTH = 64;
 const int TILEHEIGHT = 56;
+const Vector2 TILESIZE = {x:TILEWIDTH, y:TILEHEIGHT};
 
 debug const int WAITTIME = 800;
 else const int WAITTIME = 1600;
