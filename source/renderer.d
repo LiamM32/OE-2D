@@ -130,6 +130,7 @@ class Renderer
 
             onMap = true;
             version(fluid) uiRoot.draw;
+            version(customgui) foreach (element; gui) element.draw;
 
             version(raylib) EndDrawing();
 
@@ -161,7 +162,8 @@ class Renderer
         }
 
         version (customgui) {
-
+            ScrollBox unitSelection = new ScrollBox(Vector2(96, screenSize.y-96), cast(UIElement[])unitCards, 3, Axis.vertical);
+            gui ~= unitSelection;
         }
         version (fluid) {
             Frame unitSelection = fluid.grid.grid(paperTheme, .layout!("center","start"), unitCards);

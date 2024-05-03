@@ -24,7 +24,7 @@ class UnitInfoCard : UIElement
         this.imageFrame = Rectangle(origin.x+4, origin.y+4, 64, 64);
         this.unit = unit;
 
-        style = UIStyle.getDefault;
+        style = UIStyle.cardStyle;
         this.font = FontSet.getDefault.serif;
         GenTextureMipmaps(&font.texture);
 
@@ -64,11 +64,11 @@ class UnitInfoCard : UIElement
         return true;
     } else override void draw(Vector2 offset = Vector2(0,0)) {
         if (unit.currentTile !is null) return;
-        DrawRectangleRec(offsetRect(area, offset), Color(r:250, b:230, g:245, a:200));
-        DrawRectangleLinesEx(offsetRect(area, offset), 1.0f, style.outlineColour);
-        DrawTextureV(unit.sprite, Vector2(area.x,area.y)+offset+Vector2(4,2), Colors.WHITE); //change `Vector2(area.x,area.y)` to `area.origin` if my addition to Raylib-D gets merged.
-        DrawTextEx(font, unit.name.toStringz, Vector2(area.x+80, area.y+4), 17.0f, 1.0f, style.textColour);
-        DrawTextEx(font, infotext.toStringz, Vector2(area.x+80, area.y+20), 12.5f, 1.0f, style.textColour);
+        DrawRectangleRec(area+offset, Color(r:250, b:230, g:245, a:200));
+        DrawRectangleLinesEx(area+offset, 1.0f, style.outlineColour);
+        DrawTextureV(unit.sprite, area.origin+offset+Vector2(4,2), Colors.WHITE); //change `Vector2(area.x,area.y)` to `area.origin` if my addition to Raylib-D gets merged.
+        DrawTextEx(font, unit.name.toStringz, Vector2(area.x+80, area.y+4)+offset, 17.0f, 1.0f, style.textColour);
+        DrawTextEx(font, infotext.toStringz, Vector2(area.x+80, area.y+20)+offset, 12.5f, 1.0f, style.textColour);
         SetTextureFilter(font.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);
         if (CheckCollisionPointRec(GetMousePosition(), this.area) && IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) onClick();
     }
@@ -83,7 +83,7 @@ class UnitInfoPanel
     VisibleUnit unit;
 
     this(Vector2 origin) {
-        this.style = UIStyle.getDefault;
+        this.style = UIStyle.cardStyle;
         this.textArea = Rectangle(origin.x, origin.y-64, 192, 64);
     }
 
@@ -125,7 +125,7 @@ class AttackInfoPanel
 
     this(AttackPotential attackInfo) {
         this.attackInfo = attackInfo;
-        this.style = UIStyle.getDefault;
+        this.style = UIStyle.sheetStyle;
     }
 
     this(Unit attacker, Unit target, const bool now, Vector2 origin) {
@@ -134,7 +134,7 @@ class AttackInfoPanel
         
         if (now) attackInfo = attacker.getAttackPotential(target);
         else attackInfo = attacker.getAttackPotential(target, 2);
-        this.style = UIStyle.getDefault;
+        this.style = UIStyle.sheetStyle;
         
         this.area = Rectangle(x:origin.x, y:origin.y, width:192, height:48);
 

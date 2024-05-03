@@ -63,7 +63,7 @@ class Mission : Map
 
         this.instance = this;
 
-        version (customgui) this.style = UIStyle.getDefault;
+        version (customgui) this.style = UIStyle.sheetStyle;
 
         version (fluid) {
             auto menuPanel = nodeSlot!Frame();

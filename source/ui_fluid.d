@@ -29,7 +29,7 @@ Theme paperTheme() {
         rule(backgroundColor = Colours.paper, typeface = FontStyles.headings),
         rule!Frame(backgroundColor = Colours.paper),
         rule!Grid(lineColor = Colors.BLACK, border = 1.0f),
-        //rule!Label(typeface = FontStyles.smallText)
+        rule!UnitInfoCard(backgroundColor = Colours.lightPaper, typeface = FontStyles.smallText)
     );
 }
 

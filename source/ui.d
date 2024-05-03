@@ -39,7 +39,8 @@ class FontSet {
 
 class UIStyle
 {
-    static UIStyle defaultStyle;
+    protected static UIStyle _sheetStyle;
+    protected static UIStyle _cardStyle;
     
     Color baseColour;
     Color textColour;
@@ -50,17 +51,25 @@ class UIStyle
     float lineSpacing = 1.0f;
     FontSet fontSet;
 
-    this(Color baseColour, Color textColour, Color outlineColour, float outlineThickness, FontSet fontSet) {
+    this(Color baseColour, Color textColour, Color outlineColour, float outlineThickness, FontSet fontSet, float padding = 0f) {
         this.baseColour = baseColour;
         this.textColour = textColour;
         this.outlineColour = outlineColour;
         this.outlineThickness = outlineThickness;
         this.fontSet = FontSet.getDefault;
+        this.padding = padding;
     }
 
-    static UIStyle getDefault() {
-        if (defaultStyle is null) defaultStyle = new UIStyle(Colours.paper, Colors.BLACK, Colors.BROWN, 1.0f, FontSet.getDefault);
-        return defaultStyle;
+    static UIStyle sheetStyle() {
+        if (_sheetStyle is null) _sheetStyle = new UIStyle(Colours.paper, Colors.BLACK, Colors.BROWN, 1.0f, FontSet.getDefault, 2.0f);
+        return _sheetStyle;
+    }
+
+    alias buttonStyle = sheetStyle;
+
+    static UIStyle cardStyle() {
+        if (_cardStyle is null) _cardStyle = new UIStyle(Colours.paper, Colors.BLACK, Colors.BROWN, 1.0f, FontSet.getDefault);
+        return _cardStyle;
     }
 }
 
@@ -69,6 +78,9 @@ class UIElement {
     protected bool updateOnHover = true;
     UIStyle style;
     Rectangle area;
+    alias this = area;
+
+    alias origin = area.origin;
     
     //void setStyle();
     //void draw() {draw(Vector2(0,0));} // Returns whether the mouse is hovering.
@@ -80,24 +92,59 @@ class UIElement {
             return true;
         } else return false;
     }
+
+    protected void drawOutline(Vector2 offset = Vector2(0,0)) {
+        DrawRectangleRec(area + offset, style.baseColour);
+    }
 }
 
 enum FontStyle { serif, serif_bold, serif_italic, sans, sans_bold, }
 
-version (customgui) class Panel : UIElement
-{
-    Vector2 origin;
-    UIElement[] children;
+enum Axis : bool {vertical, horizontal};
 
-    this(Vector2 origin, UIElement[] children = []) {
-        this.origin = origin;
+
+class Panel : UIElement
+{
+    UIElement[] children;
+    const Axis axis;
+    
+    this(Vector2 origin, UIElement[] children = [], const Axis axis = Axis.vertical) {
+        this(origin, axis);
+
         this.children = children;
+
+        foreach(i, ref child; children[1..$]) {
+            if (axis == Axis.vertical) {
+                child.y = child.y.clamp(children[i-1].bottom, children[i-1].bottom+child.y);
+            } else {
+                child.x = child.x.clamp(children[i-1].right, children[i-1].bottom+child.x);
+            }
+        }
+    }
+
+    protected this(Vector2 origin, const Axis axis) {
+        this.axis = axis;
+        //Todo: Change to `this.area.position = origin` when allowed by Raylib-D
+        this.area.x = origin.x;
+        this.area.y = origin.y;
+    }
+
+    void setArea() {
+        foreach (child; children) {
+            this.x = min(this.x, child.x);
+            this.y = min(this.y, child.y);
+            this.width = max(this.x+this.width, child.x+child.y) - this.x;
+            this.height = max(this.y+this.height, child.x+child.height) - this.y;
+        }
     }
     
     override void draw(Vector2 offset = Vector2(0,0)) {
         bool hover;
+
+        if (style !is null) super.drawOutline(offset);
+
         foreach (childElement; children) {
-            childElement.draw(origin+offset);
+            childElement.draw(area.origin+offset);
         }
     }
 }
@@ -122,7 +169,7 @@ version (customgui) class TextButton : UIElement
         this.area = area;
         this.text = text;
 
-        if (style is null) style = UIStyle.getDefault;
+        if (style is null) style = UIStyle.buttonStyle;
         this.style = style;
         this.fontSize = fontSize;
         this.onClick = action;
@@ -170,7 +217,7 @@ class MenuList : UIElement
         this.origin = origin;
         this.action = action;
 
-        if (style is null) style = UIStyle.getDefault;
+        if (style is null) style = UIStyle.sheetStyle;
         this.style = style;
         
         foreach (i, object; array) {
@@ -192,5 +239,68 @@ class MenuList : UIElement
         }
         checkHover();
         if (childElement !is null) childElement.draw;
+    }
+}
+
+// Places child elements in a grid.
+class ScrollBox : Panel
+{
+    float scroll; // Scroll position
+
+    this(Vector2 origin, UIElement[] children, const uint maxPerRow, const Axis axis = Axis.vertical) {
+        super(origin, axis);
+        
+        this.children = children;
+        this.style = UIStyle.sheetStyle;
+
+        const padding = style.padding;
+
+        struct PositionPtr {
+            float* a, b;
+            float sizeA, sizeB;
+
+            this(ref Rectangle rect) {
+                if (axis == Axis.vertical) {
+                    a = &rect.x;
+                    sizeA = rect.width;
+                    b = &rect.y;
+                    sizeB = rect.height;
+                } else {
+                    a = &rect.y;
+                    sizeA = rect.height;
+                    b = &rect.x;
+                    sizeB = rect.width;
+                }
+            }
+
+            this(Vector2 position) {
+                Rectangle rect = Rectangle(position.tupleof, 0f, 0f);
+                
+                this(rect);
+            }
+        }
+
+        auto prevPosition = PositionPtr(this.position);
+
+        foreach(i, ref child; children) {
+            bool newRow = !(i % maxPerRow);
+            ubyte compareDist = cast(ubyte) (newRow ? maxPerRow : 1);
+            auto childPosition = PositionPtr(child.area);
+        
+            if (newRow) {
+                *childPosition.b = *prevPosition.b + prevPosition.sizeB + padding;
+            } else {
+                assert(childPosition.a == &child.x);
+                *childPosition.a = *prevPosition.a + prevPosition.sizeA + padding;
+                assert(child.x == *childPosition.a);
+            }
+            debug {
+                assert((child.x==*childPosition.a), "childPosition.a = "~(*childPosition.a).to!string~"child.x = "~child.x.to!string);
+                //assert((child.y==*childPosition.b));
+            }
+            prevPosition = childPosition;
+        }
+    
+        setArea();
     }
 }
