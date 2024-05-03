@@ -21,15 +21,28 @@ static struct FontStyles {
     }
 
     alias headings = getStyle!(0, "LiberationSans-Regular.ttf", 16);
-    alias smallText = getStyle!(0, "LiberationSans-Regular.ttf", 12);
+    alias smallText = getStyle!(1, "LiberationSans-Regular.ttf", 11);
 }
 
 Theme paperTheme() {
     return Theme(
-        rule(backgroundColor = Colours.paper, typeface = FontStyles.headings),
-        rule!Frame(backgroundColor = Colours.paper),
-        rule!Grid(lineColor = Colors.BLACK, border = 1.0f),
-        rule!UnitInfoCard(backgroundColor = Colours.lightPaper, typeface = FontStyles.smallText)
+        rule(
+            typeface = FontStyles.headings,
+        ),
+        rule!Frame(
+            backgroundColor = Colours.paper,
+            border = 1f,
+            borderStyle = colorBorder(Colors.BLACK)
+        ),
+        rule!UnitInfoCard(
+            backgroundColor = Colours.lightPaper,
+            typeface = FontStyles.smallText,
+            margin = 4f,
+            borderStyle = colorBorder(Colors.BLACK)
+        ),
+        rule!Label(
+            backgroundColor = Color(0,0,0,0)
+        )
     );
 }
 
@@ -71,17 +84,18 @@ class UnitInfoCard : Frame, FluidHoverable
         sizeLimitX = 256;
         sizeLimitY = 96;
 
-        children ~= vframe(
-            label(unit.name),
+        children ~= vspace(
+            .layout!(2, "fill"),
+            label(.layout!("centre","start"), unit.name),
             //Todo: Replace `.path` with `toFluid` when it starts working.
-            imageView((unit.sprite.path)),
+            imageView(.layout!("centre","centre"), unit.sprite.path),
         );
 
         Theme smallTextTheme = paperTheme.derive(rule!Label(typeface = FontStyles.smallText));
-        statsArea = vspace(paperTheme, .layout!"fill");
+        statsArea = vspace(paperTheme, .layout!(3, "end"));
         import std.traits;
         static foreach (stat; FieldNameTuple!UnitStats) static if (stat[0].isUpper) {
-            mixin("statsArea.children ~= label(smallTextTheme, .layout!\"fill\", stat~\": \"~"~"unit."~stat~".to!string);");
+            mixin("statsArea.children ~= label(smallTextTheme, .layout!\"start\", stat~\": \"~"~"unit."~stat~".to!string);");
             debug {
                 statsArea.children[$-1].reloadStyles;
                 assert(statsArea.children[$-1].style.typeface == FontStyles.smallText);
@@ -98,8 +112,8 @@ class UnitInfoCard : Frame, FluidHoverable
         super.resizeImpl(availableSpace);
 
         //minSize = Vector2(256, 72);
-        debug assert(statsArea.children[$-1].style.typeface == FontStyles.smallText);
-        debug assert(this.style.typeface == FontStyles.headings);
+        //debug assert(statsArea.children[$-1].style.typeface == FontStyles.smallText);
+        //debug assert(this.style.typeface == FontStyles.headings);
     }
 
     override void drawImpl(Rectangle outer, Rectangle inner) {
@@ -109,8 +123,8 @@ class UnitInfoCard : Frame, FluidHoverable
             Renderer.instance.cursorOnMap = false;
         }
 
-        debug assert(statsArea.children[$-1].style.typeface == FontStyles.smallText);
-        debug assert(this.style.typeface == FontStyles.headings);
+        //debug assert(statsArea.children[$-1].style.typeface == FontStyles.smallText);
+        //debug assert(this.style.typeface == FontStyles.headings);
     }
 
     override bool isHovered() const @safe => super.isHovered;

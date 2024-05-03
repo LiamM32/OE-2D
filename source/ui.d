@@ -280,25 +280,25 @@ class ScrollBox : Panel
             }
         }
 
-        auto prevPosition = PositionPtr(this.position);
-
+        Vector2 prevPosition = this.position;
+        Vector2 nextRowStart = prevPosition;
+        assert(prevPosition.x != 192);
         foreach(i, ref child; children) {
             bool newRow = !(i % maxPerRow);
-            ubyte compareDist = cast(ubyte) (newRow ? maxPerRow : 1);
-            auto childPosition = PositionPtr(child.area);
+            ushort compareDist = cast(ushort) (newRow ? maxPerRow : 1);
         
             if (newRow) {
-                *childPosition.b = *prevPosition.b + prevPosition.sizeB + padding;
-            } else {
-                assert(childPosition.a == &child.x);
-                *childPosition.a = *prevPosition.a + prevPosition.sizeA + padding;
-                assert(child.x == *childPosition.a);
+                prevPosition = nextRowStart;
+                assert(prevPosition.x != 192);
             }
-            debug {
-                assert((child.x==*childPosition.a), "childPosition.a = "~(*childPosition.a).to!string~"child.x = "~child.x.to!string);
-                //assert((child.y==*childPosition.b));
-            }
-            prevPosition = childPosition;
+
+            child.position.x = prevPosition.x + padding;
+            child.position.y = prevPosition.y + padding;
+            nextRowStart.x = max(nextRowStart.x, child.right);
+
+            assert(child.x != child.right);
+            assert(prevPosition.x != child.right, prevPosition.x.to!string);
+            prevPosition.x = child.right;
         }
     
         setArea();
