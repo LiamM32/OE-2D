@@ -1,8 +1,9 @@
+module ui_custom.specialized;
+// Definitions of specialized UI elements
+
+import std.string, std.conv;
 import raylib;
-import ui;
-import std.string;
-import std.conv;
-import vector_math;
+import ui_custom.base;
 
 version (raygui) const bool INHERIT = false;
 else const bool INHERIT = true;
@@ -55,9 +56,9 @@ class UnitInfoCard : UIElement
 
     version (raygui) bool draw(Vector2 offset = Vector2(0,0)) {
         if (unit.currentTile !is null) return false;
-        DrawRectangleRec(offsetRect(area, offset), Color(r:250, b:230, g:245, a:200));
-        DrawRectangleLinesEx(offsetRect(area, offset), 1.0f, style.outlineColour);
-        DrawTextureV(unit.sprite, Vector2(area.x,area.y)+offset+Vector2(4,2), Colors.WHITE); //change `Vector2(area.x,area.y)` to `area.origin` if my addition to Raylib-D gets merged.
+        DrawRectangleRec((area + offset), Color(r:250, b:230, g:245, a:200));
+        DrawRectangleLinesEx((area + offset), 1.0f, style.outlineColour);
+        DrawTextureV(unit.sprite, area.origin+offset+Vector2(4,2), Colors.WHITE);
         DrawTextEx(font, unit.name.toStringz, Vector2(area.x+80, area.y+4), 17.0f, 1.0f, style.textColour);
         DrawTextEx(font, infotext.toStringz, Vector2(area.x+80, area.y+20), 12.5f, 1.0f, style.textColour);
         SetTextureFilter(font.texture, TextureFilter.TEXTURE_FILTER_BILINEAR);

@@ -1,3 +1,5 @@
+module ui_fluid;
+
 version (fluid):
 
 debug import std.stdio;
@@ -28,6 +30,7 @@ Theme paperTheme() {
     return Theme(
         rule(
             typeface = FontStyles.headings,
+            //padding = 2f
         ),
         rule!Frame(
             backgroundColor = Colours.paper,
@@ -92,7 +95,7 @@ class UnitInfoCard : Frame, FluidHoverable
         );
 
         Theme smallTextTheme = paperTheme.derive(rule!Label(typeface = FontStyles.smallText));
-        statsArea = vspace(paperTheme, .layout!(3, "end"));
+        statsArea = vspace(.layout!(3, "end"));
         import std.traits;
         static foreach (stat; FieldNameTuple!UnitStats) static if (stat[0].isUpper) {
             mixin("statsArea.children ~= label(smallTextTheme, .layout!\"start\", stat~\": \"~"~"unit."~stat~".to!string);");
@@ -110,10 +113,6 @@ class UnitInfoCard : Frame, FluidHoverable
 
     override void resizeImpl(Vector2 availableSpace) {
         super.resizeImpl(availableSpace);
-
-        //minSize = Vector2(256, 72);
-        //debug assert(statsArea.children[$-1].style.typeface == FontStyles.smallText);
-        //debug assert(this.style.typeface == FontStyles.headings);
     }
 
     override void drawImpl(Rectangle outer, Rectangle inner) {
@@ -122,9 +121,6 @@ class UnitInfoCard : Frame, FluidHoverable
         if (isHovered && tree.isMouseDown!(FluidInputAction.press)) {
             Renderer.instance.cursorOnMap = false;
         }
-
-        //debug assert(statsArea.children[$-1].style.typeface == FontStyles.smallText);
-        //debug assert(this.style.typeface == FontStyles.headings);
     }
 
     override bool isHovered() const @safe => super.isHovered;

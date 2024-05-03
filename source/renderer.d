@@ -21,7 +21,7 @@ version (fluid) {
     import raylib: MouseButton, KeyboardKey;
 }
 version (customgui) {
-    import ui, ui_specialized;
+    import ui_custom;
 }
 
 class Renderer

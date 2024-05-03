@@ -26,11 +26,11 @@ uint CheckFluidVersion() {
 
 import raylib: Color, Colors;
 enum Colours {
-    shadow = Color(r:0, b:0, g:0, a:150),
+    shadow = Color(r:0, g:0, b:0, a:150),
     whitelight = Color(245, 245, 245, 32),
     bluelight = Color(180, 200, 255, 24),
     goldlight = Color(250, 250, 60, 35),
     paper = Color(240, 234, 210, a:240),
-    lightPaper = Color(245, 238, 236, a:180),
+    lightPaper = Color(244, 238, 235, a:180),
     crimson = Color(160, 7, 16, 255),
 }

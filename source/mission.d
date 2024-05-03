@@ -22,8 +22,7 @@ import oe.unit;
 import vunit;
 import vector_math;
 import constants;
-import ui;
-import ui_specialized;
+import ui_custom;
 import sprite;
 
 class Mission : Map

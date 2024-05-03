@@ -11,6 +11,7 @@ import oe.tile;
 import oe.common;
 import oe.faction;
 import vector_math;
+import ui_custom.base; //Todo: Later replace this with something fluid-related.
 
 import oe.item;
 
@@ -187,7 +188,7 @@ class VisibleUnit : Unit
     class Message {
         import core.memory;
         import std.datetime.stopwatch;
-        import ui;
+        //import ui;
         
         string text;
         Vector2 position;
