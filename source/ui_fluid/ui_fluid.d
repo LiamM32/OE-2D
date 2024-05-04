@@ -12,6 +12,8 @@ import constants, sprite, vunit, renderer;
 static import raylib;
 import fluid.typeface;
 
+@safe:
+
 static struct FontStyles {
     static FreetypeTypeface[5] fontStyles;
 
@@ -127,5 +129,18 @@ class UnitInfoCard : Frame, FluidHoverable
 
     void mouseImpl() @safe {
         Renderer.instance.cursorOnMap = false;
+    }
+
+    void enable() @safe {
+        foreach (node; children) node.hide;
+        this.theme = paperTheme();
+    }
+
+    void disable() @safe {
+        foreach (node; children) node.show;
+
+        this.theme = Theme(
+            rule!UnitInfoCard(backgroundColor = Colours.shadow)
+        );
     }
 }
