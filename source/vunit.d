@@ -19,7 +19,8 @@ class VisibleUnit : Unit
 {
     //UnitSpriteSet spriteSet;
     Sprite sprite;
-    Vector2 position;
+    Vector2 spritePosition;
+    deprecated alias position = spritePosition;
     ActionStep[] queue;
     Message message;
 
@@ -65,6 +66,9 @@ class VisibleUnit : Unit
 
     Vector2 feetPosition() {
         return position + Vector2(TILEWIDTH/2, sprite.height-TILEHEIGHT/2);
+    }
+    void feetPosition(Vector2 position){
+        this.spritePosition = Vector2(position.x, position.y - sprite.height/2.5f);
     }
 
     Vector2i feetLocation() {
