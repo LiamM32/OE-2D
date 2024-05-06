@@ -107,10 +107,6 @@ class UnitInfoCard : Frame, FluidHoverable
             }
         }
         children ~= statsArea;
-
-        Renderer renderer = Renderer.instance;
-
-        
     }
 
     override void resizeImpl(Vector2 availableSpace) {
@@ -127,17 +123,19 @@ class UnitInfoCard : Frame, FluidHoverable
 
     override bool isHovered() const @safe => super.isHovered;
 
-    void mouseImpl() @safe {
+    void mouseImpl() {
         Renderer.instance.cursorOnMap = false;
     }
 
-    void enable() @safe {
-        foreach (node; children) node.hide;
+    void enable() {
+        this.show();
+        
+        foreach (node; children) node.show;
         this.theme = paperTheme();
     }
 
-    void disable() @safe {
-        foreach (node; children) node.show;
+    void disable() {
+        foreach (node; children) node.hide;
 
         this.theme = Theme(
             rule!UnitInfoCard(backgroundColor = Colours.shadow)

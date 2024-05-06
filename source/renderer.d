@@ -281,6 +281,18 @@ class Renderer
         return result;
     }
 
+    void updateUnitPlacement() {
+        //unitsByRow.length = map.gridLength;
+        foreach (uint y; 0..map.getLength) {
+            unitsByRow[y] = [];
+            foreach (uint x; 0..map.getWidth) {
+                Tile tile = map.getTile(x,y);
+                if (tile.occupant) unitsByRow[y] ~= cast(VisibleUnit) tile.occupant;
+                (cast(VisibleUnit)tile.occupant).position = Vector2(x*TILEWIDTH, y*TILEHEIGHT-30f);
+            }
+        }
+    }
+
     void sortUnits() {
         import std.array, std.algorithm;
 
