@@ -166,7 +166,7 @@ class Renderer
             gui ~= unitSelection;
         }
         version (fluid) {
-            Frame unitSelection = fluid.grid.grid(paperTheme, .layout!("center","start"), unitCards);
+            Frame unitSelection = gridFrame(paperTheme, .layout!("center","start"), unitCards);
 
             uiRoot.addChild(unitSelection, MapPosition(
                 coords: Vector2(screenSize.x/2, screenSize.y),

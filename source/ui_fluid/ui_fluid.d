@@ -73,7 +73,7 @@ class ConditionalNodeSlot(T: Node) : NodeSlot!T
 
 alias unitInfoCard = simpleConstructor!UnitInfoCard;
 
-class UnitInfoCard : Frame, FluidHoverable
+class UnitInfoCard : InputNode!Frame
 {
     VisibleUnit unit;
     alias image = unit.sprite;
@@ -109,21 +109,15 @@ class UnitInfoCard : Frame, FluidHoverable
         children ~= statsArea;
     }
 
-    override void resizeImpl(Vector2 availableSpace) {
-        super.resizeImpl(availableSpace);
-    }
-
     override void drawImpl(Rectangle outer, Rectangle inner) {
         super.drawImpl(outer, inner);
 
         if (isHovered && tree.isMouseDown!(FluidInputAction.press)) {
-            Renderer.instance.cursorOnMap = false;
+            if (submitted !is null) submitted();
         }
     }
 
-    override bool isHovered() const @safe => super.isHovered;
-
-    void mouseImpl() {
+    override void mouseImpl() {
         Renderer.instance.cursorOnMap = false;
     }
 

@@ -142,6 +142,15 @@ class VisibleUnit : Unit
         } else return false;
     }
 
+    override void setLocation(Tile destination, const bool runUpdateReach = true) {
+        super.setLocation(destination, runUpdateReach);
+        this.position = Vector2(location.x*TILEWIDTH, location.y*TILEHEIGHT-30f);
+    }
+    override void setLocation(uint x, uint y, const bool runUpdateReach = true) {
+        super.setLocation(x, y, runUpdateReach);
+        this.position = Vector2(location.x*TILEWIDTH, location.y*TILEHEIGHT-30f);
+    }
+
     void stepTowards (Tile tile) { stepTowards(tile.x, tile.y);}
     
     float stepTowards (int x, int y, bool trig=false) {
