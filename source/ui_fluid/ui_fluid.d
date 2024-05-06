@@ -83,8 +83,11 @@ class UnitInfoCard : InputNode!Frame
 
     debug Space statsArea;
     
-    this(VisibleUnit unit) {
+    this(VisibleUnit unit, void delegate(Unit) @safe clickAction = null) {
         this.isHorizontal = true;
+
+        this.unit = unit;
+        submitted = () => clickAction(unit);
 
         sizeLimitX = 256;
         sizeLimitY = 96;
@@ -109,6 +112,10 @@ class UnitInfoCard : InputNode!Frame
         children ~= statsArea;
     }
 
+    void clickAction(void delegate(Unit) @safe clickAction) {
+        submitted = () => clickAction(unit);
+    }
+
     override void drawImpl(Rectangle outer, Rectangle inner) {
         super.drawImpl(outer, inner);
 
@@ -124,14 +131,14 @@ class UnitInfoCard : InputNode!Frame
     void enable() {
         this.show();
         
-        foreach (node; children) node.show;
+        //foreach (node; children) node.show;
         this.theme = paperTheme();
     }
 
     void disable() {
-        foreach (node; children) node.hide;
+        //foreach (node; children) node.hide;
 
-        this.theme = Theme(
+        this.theme = paperTheme.derive(
             rule!UnitInfoCard(backgroundColor = Colours.shadow)
         );
     }

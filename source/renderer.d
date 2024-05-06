@@ -94,6 +94,8 @@ class Renderer
 
         mapView = Rectangle(0, 0, GetScreenWidth, GetScreenHeight);
 
+        missionTimer = StopWatch(AutoStart.yes);
+
         setupPreparation;
     }
 
@@ -245,13 +247,15 @@ class Renderer
     }
 
     void updateUnitPlacement() {
-        //unitsByRow.length = map.gridLength;
+        unitsByRow.length = map.getLength;
         foreach (uint y; 0..map.getLength) {
             unitsByRow[y] = [];
             foreach (uint x; 0..map.getWidth) {
                 Tile tile = map.getTile(x,y);
-                if (tile.occupant) unitsByRow[y] ~= cast(VisibleUnit) tile.occupant;
-                (cast(VisibleUnit)tile.occupant).position = Vector2(x*TILEWIDTH, y*TILEHEIGHT-30f);
+                if (tile.occupant) {
+                    unitsByRow[y] ~= cast(VisibleUnit) tile.occupant;
+                    (cast(VisibleUnit)tile.occupant).position = Vector2(x*TILEWIDTH, y*TILEHEIGHT-30f);
+                }
             }
         }
     }
@@ -292,7 +296,7 @@ class Renderer
 
         VisibleTile[] startTiles;
 
-        UnitInfoCard[Unit] cardForUnit;
+        UnitInfoCard[Unit] cardsByUnit;
         
         this() {
             renderer = this.outer;
@@ -311,12 +315,12 @@ class Renderer
                 tile.highlights = [Colours.goldlight];
             }
 
-            auto unitCards = new GCArray!UnitInfoCard;
-            //UnitInfoCard[] unitCards = new UnitInfoCard[0];
+            UnitInfoCard[] unitCards = new UnitInfoCard[0];
             foreach (unitData; parseJSON(readText("Units.json")).array) {
                 VisibleUnit unit = new VisibleUnit(map, unitData, playerFaction);
-                cardForUnit[unit] = new UnitInfoCard(unit);
-                unitCards ~= cardForUnit[unit];
+                auto card = new UnitInfoCard(unit, delegate(Unit cardUnit) => selectUnit(cardUnit));
+                cardsByUnit[unit] = card;
+                unitCards ~= card;
             }
 
             version (customgui) {
@@ -333,9 +337,10 @@ class Renderer
 
                 debug if (canFind(unitCards, null)) throw new Exception("Empty cards");
                 
+                const startTilesCount = cast(ushort)startTiles.length;
                 nextTurnSlot.condition = delegate() @safe {
-                    auto deployed = count!(card => card.unit.currentTile !is null)(unitCards);
-                    return (missionTimer.peek * deployed > msecs(WAITTIME) * startTiles.length);
+                    auto deployed = count!(card => card.unit.currentTile !is null)(unitCards.array);
+                    return (missionTimer.peek * deployed > msecs(WAITTIME) * startTilesCount);
                 };
                 nextTurnSlot = button("Start Mission", delegate() @safe {
                     //uiRoot.children = null;
@@ -348,26 +353,41 @@ class Renderer
             }
         }
 
-        void drawTop() {
+        void selectUnit(Unit unit) @safe {
+            if (unit is null) throw new Exception("Tried to select null unit");
+            
             if (selectedUnit !is null) {
-                selectedUnit.feetPosition = mousePosition;
-                DrawTextureV(selectedUnit.sprite, selectedUnit.spritePosition - TILESIZE/2, Colors.WHITE);
+                cardsByUnit[selectedUnit].enable;
             }
 
-            if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT) && cursorOnMap) {
-                foreach(tile; startTiles) if (tile == cursorTile) {
+            selectedUnit = cast(VisibleUnit) unit;
+            if (selectedUnit.currentTile) selectedUnit.currentTile.occupant = null;
+            unit.currentTile = null;
+            cardsByUnit[unit].disable;
+        }
+
+        void drawTop() {
+            if (selectedUnit !is null) {
+                DrawTextureV(selectedUnit.sprite, mousePosition - Vector2(TILEWIDTH/2, selectedUnit.sprite.height), Colors.WHITE);
+            }
+        
+            if (IsMouseButtonReleased(MouseButton.MOUSE_BUTTON_LEFT) && cursorOnMap) {
+                if (canFind(startTiles, cursorTile)) {
                     auto temp = cast(VisibleUnit) cursorTile.occupant;
-                    if (temp) temp.currentTile = null;
-                    selectedUnit.setLocation(cursorTile, false);
-                    debug assert(selectedUnit == tile.occupant);
+                    if (temp) {
+                        temp.currentTile.occupant = null;
+                        temp.currentTile = null;
+                    }
+                    if (selectedUnit) {
+                        selectedUnit.setLocation(cursorTile, false);
+                        writeln("Deployed "~selectedUnit.name);
+                    }
                     selectedUnit = temp;
+
+                    debug map.verifyEverything();
+                    updateUnitPlacement();
                 }
             }
         }
     }
-}
-
-class GCArray(T) {
-    T[] array;
-    alias this = array;
 }

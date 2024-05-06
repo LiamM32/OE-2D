@@ -15,6 +15,8 @@ import ui_custom.base; //Todo: Later replace this with something fluid-related.
 
 import oe.item;
 
+alias VUnit = VisibleUnit;
+
 class VisibleUnit : Unit
 {
     //UnitSpriteSet spriteSet;
@@ -78,7 +80,7 @@ class VisibleUnit : Unit
     void draw() {
         if (queue.length > 0) act;
         
-        DrawTextureV(sprite, position+Vector2(0.0f, -30.0f), Colors.WHITE);
+        DrawTextureV(sprite, position+Vector2(0.0f, 0.0f), Colors.WHITE);
 
         if (message !is null) message.draw;
     }

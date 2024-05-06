@@ -5,6 +5,8 @@ import oe.common;
 import constants;
 import sprite;
 
+alias VTile = VisibleTile;
+
 class VisibleTile : Tile//T!VisibleTile
 {
     Sprite[2] sprites; // `sprite[0]` is the ground sprite.
