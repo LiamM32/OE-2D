@@ -102,7 +102,18 @@ class Renderer
     void render() {
         Vector2i gridSize = map.getSize;
 
+        Faction activeFaction;
+
         while(!WindowShouldClose) {
+            if (map.activeFaction !is activeFaction) {
+                activeFaction = map.activeFaction;
+                if (activeFaction is playerFaction) setupPlayerTurn();
+                else if (activeFaction !is null) {
+                    destroy(turnObject);
+                    turnObject = null;
+                }
+            }
+            
             updateCameraMouse();
             version(raylib) {
                 BeginDrawing();
@@ -125,11 +136,6 @@ class Renderer
                 foreach(unit; unitsByRow[y]) unit.draw;
             }
 
-            switch (map.getPhase) {
-                case GamePhase.PlayerTurn: cyclePlayerTurn; break;
-                default: break;
-            }
-
             EndMode2D();
 
             onMap = true;
@@ -139,9 +145,6 @@ class Renderer
             if (turnObject !is null) turnObject.drawTop;
 
             version(raylib) EndDrawing();
-
-            assert(turnObject ? (turnObject !is null) : (turnObject is null));
-            assert(turnObject !is null);
 
             if (actionAfterDraw !is null) {
                 actionAfterDraw();
@@ -155,46 +158,11 @@ class Renderer
         assert(turnObject !is null);
     }
 
-    void cyclePreparation() {
-        if (selectedUnit !is null) DrawTextureV(selectedUnit.sprite, selectedUnit.position - TILESIZE, Colors.WHITE);
-    }
-
-    void setupPlayerTurn() @safe {
-        foreach (tile; grid.join) tile.highlights.length = 0;
-
-        Action currentAction = Action.nothing;
-        
-        version (fluid) {
-            uiRoot.updateSize;
-            
-            foreach (node; uiRoot.children) if (node !is nextTurnSlot) {
-                node.toRemove = true;
-            }
-            
-            NodeSlot!Frame floatingMenu = nodeSlot!Frame();
-            Button endTurnButton = button("End turn", delegate {
-                map.endTurn;
-            });
-
-            nextTurnSlot.condition = delegate() {return (selectedUnit is null && currentAction == Action.nothing);};
-            nextTurnSlot = endTurnButton;
-            
-            uiRoot.addChild(floatingMenu,
-                MapPosition(
-                    cast(Vector2)screenSize/2,
-                    drop: MapDropVector(MapDropDirection.end, MapDropDirection.end)
-                )
-            );
-
-            uiRoot.updateSize;
+    void setupPlayerTurn() @trusted {
+        if (turnObject) {
+            destroy(turnObject);
         }
-        else version (customgui) {
-
-        }
-    }
-
-    protected void cyclePlayerTurn() {
-        
+        turnObject = cast(Turn) new PlayerTurn();
     }
 
     void updateCameraMouse() { 
@@ -353,6 +321,13 @@ class Renderer
             }
         }
 
+        ~this() {
+            foreach (tile; startTiles) if (tile.occupant) {
+                tile.occupant.map = map;
+                map.addUnit(tile.occupant);
+            }
+        }
+
         void selectUnit(Unit unit) @safe {
             if (unit is null) throw new Exception("Tried to select null unit");
             
@@ -388,6 +363,78 @@ class Renderer
                     updateUnitPlacement();
                 }
             }
+        }
+    }
+
+    class PlayerTurn : Turn
+    {
+        Renderer renderer;
+        alias this = renderer;
+
+        NodeSlot!Frame floatingMenu;
+        Frame unitActionsMenu;
+
+        Action currentAction;
+        
+        this() {
+            renderer = this.outer;
+            
+            foreach (tile; grid.join) tile.highlights.length = 0;
+
+            currentAction = Action.nothing;
+            
+            version (fluid) {
+                
+                foreach (node; uiRoot.children) if (node !is nextTurnSlot) {
+                    node.toRemove = true;
+                }
+                
+                floatingMenu = nodeSlot!Frame();
+                Button endTurnButton = button("End turn", delegate {
+                    map.endTurn;
+                });
+
+                nextTurnSlot.condition = delegate() {return (selectedUnit is null && currentAction == Action.nothing);};
+                nextTurnSlot = endTurnButton;
+                
+                uiRoot.addChild(floatingMenu,
+                    MapPosition(
+                        cast(Vector2)screenSize/2,
+                        drop: MapDropVector(MapDropDirection.end, MapDropDirection.end)
+                    )
+                );
+
+                Button moveButton = button("Move", &moveAction);
+
+                unitActionsMenu = vframe(
+                    moveButton
+                );
+
+                uiRoot.updateSize;
+            }
+            else version (customgui) {
+
+            }
+        }
+
+        void drawTop() {
+            if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT) && cursorTile
+            && cursorTile.occupant && cursorTile.occupant.faction == playerFaction) {
+                selectedUnit = cast(VUnit) cursorTile.occupant;
+                currentAction = Action.nothing;
+                floatingMenu = unitActionsMenu;
+                debug writeln("Clicked on "~cursorTile.occupant.name);
+            }
+        }
+
+        @safe:
+
+        void moveAction() {
+            foreach (tile; map.getGrid.join) (cast(VTile)tile).highlights = [];
+
+            currentAction = Action.moving;
+
+            
         }
     }
 }
