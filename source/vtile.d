@@ -33,10 +33,14 @@ class VisibleTile : Tile//T!VisibleTile
         super(cast(int)x, cast(int)y);
     }
 
-    Vector2 getDestination (Vector2 offset) {
-        offset.x += this.origin.x;
-        offset.y += this.origin.y;
-        return offset;
+    void draw() {
+        DrawTextureV(sprites[0], rect.origin, Colors.WHITE);
+        if (sprites[1] !is null) DrawTextureV(sprites[1], Vector2(rect.x, rect.bottom - sprites[1].height), Colors.WHITE);
+
+        foreach (highlight; highlights) {
+            debug assert(highlight.a > 0);
+            DrawRectangleRec(rect, highlight);
+        }
     }
 
     Vector2 origin() {
@@ -53,4 +57,21 @@ class VisibleTile : Tile//T!VisibleTile
         rect.y += offset.y;
         return rect;
     }
+
+    /*import vunit;
+    VisibleUnit occupant() {
+        return cast(VisibleUnit) occupant;
+    }
+    void occupant(Unit unit) {
+        super.occupant = unit;
+    }*/
+}
+
+VisibleTile[] visible(Tile[] tileArray) @trusted {
+    return cast(VisibleTile[]) tileArray;
+}
+
+enum TileHighlights : Color
+{
+    movable = Color(60, 240, 120, 30),
 }

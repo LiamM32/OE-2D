@@ -126,8 +126,9 @@ class Renderer
                 for(int x=0; x<gridSize.x; x++) {
                     VisibleTile tile = grid[x][y];
                     version(raylib) {
-                        DrawTextureV(tile.sprites[0], tile.origin, Colors.WHITE);
-                        foreach(highlight; tile.highlights) DrawRectangleRec(tile.rect, highlight);
+                        tile.draw;
+                        //DrawTextureV(tile.sprites[0], tile.origin, Colors.WHITE);
+                        //foreach(highlight; tile.highlights) DrawRectangleRec(tile.rect, highlight);
                     }
                 }
                 if (map.getPhase==GamePhase.PlayerTurn && cursorTile !is null && cursorTile.location.y==y) {
@@ -159,6 +160,8 @@ class Renderer
     }
 
     void setupPlayerTurn() @trusted {
+        mapView = Rectangle(0f, 0f, GetScreenWidth, GetScreenHeight);
+        
         if (turnObject) {
             destroy(turnObject);
         }
@@ -247,6 +250,11 @@ class Renderer
         }
     }
 
+    void setCursorOffMap() {
+        cursorOnMap = false;
+        cursorTile = null;
+    }
+
     interface Turn {
         /*final VisibleUnit selectedUnit() {
             return this.outer.selectedUnit;
@@ -325,6 +333,7 @@ class Renderer
             foreach (tile; startTiles) if (tile.occupant) {
                 tile.occupant.map = map;
                 map.addUnit(tile.occupant);
+                tile.occupant.updateReach;
             }
         }
 
@@ -371,8 +380,9 @@ class Renderer
         Renderer renderer;
         alias this = renderer;
 
-        NodeSlot!Frame floatingMenu;
+        NodeSlot!Node floatingMenu;
         Frame unitActionsMenu;
+        Button innerBackButton;
 
         Action currentAction;
         
@@ -389,7 +399,7 @@ class Renderer
                     node.toRemove = true;
                 }
                 
-                floatingMenu = nodeSlot!Frame();
+                floatingMenu = nodeSlot!Node();
                 Button endTurnButton = button("End turn", delegate {
                     map.endTurn;
                 });
@@ -399,16 +409,28 @@ class Renderer
                 
                 uiRoot.addChild(floatingMenu,
                     MapPosition(
-                        cast(Vector2)screenSize/2,
+                        Vector2(GetScreenWidth * 0.75f, GetScreenHeight),
                         drop: MapDropVector(MapDropDirection.end, MapDropDirection.end)
                     )
                 );
 
                 Button moveButton = button("Move", &moveAction);
+                //Button attackButton = button("Attack", &attackAction);
+                //Button itemsButton = button("Items", &itemsAction);
+                Button outerBackButton = button("Back", &deselectUnit);
 
                 unitActionsMenu = vframe(
-                    moveButton
+                    paperTheme,
+                    moveButton,
+                    //attackButton,
+                    //itemsButton,
+                    outerBackButton
                 );
+
+                innerBackButton = button("Back", () {
+                    currentAction = Action.nothing;
+                    floatingMenu = unitActionsMenu;
+                });
 
                 uiRoot.updateSize;
             }
@@ -418,23 +440,39 @@ class Renderer
         }
 
         void drawTop() {
-            if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT) && cursorTile
-            && cursorTile.occupant && cursorTile.occupant.faction == playerFaction) {
-                selectedUnit = cast(VUnit) cursorTile.occupant;
-                currentAction = Action.nothing;
-                floatingMenu = unitActionsMenu;
-                debug writeln("Clicked on "~cursorTile.occupant.name);
+            if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT) && cursorTile) {
+                if (cursorTile.occupant && cursorTile.occupant.faction == playerFaction) {
+                    selectedUnit = cast(VUnit) cursorTile.occupant;
+                    currentAction = Action.nothing;
+                    floatingMenu = unitActionsMenu;
+                    debug writeln("Clicked on "~cursorTile.occupant.name);
+                } else switch (currentAction) {
+                    case Action.moving: {
+                        selectedUnit.move(cursorTile.location.tupleof);
+                        break;
+                    }
+                    default: break;
+                }
             }
         }
 
         @safe:
+
+        void deselectUnit() {
+            selectedUnit = null;
+            currentAction = Action.nothing;
+        }
 
         void moveAction() {
             foreach (tile; map.getGrid.join) (cast(VTile)tile).highlights = [];
 
             currentAction = Action.moving;
 
-            
+            foreach(tile; selectedUnit.getReachable!Tile) {
+                (cast(VTile)tile).highlights ~= TileHighlights.movable;
+            }
+
+            floatingMenu = innerBackButton;
         }
     }
 }
